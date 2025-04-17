@@ -1,0 +1,63 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'com.beatclick'
+version = '1.0-SNAPSHOT'
+
+sourceCompatibility = '11'
+targetCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // SQLite JDBC driver
+    implementation 'org.xerial:sqlite-jdbc:3.36.0.3'
+    
+    // JUnit for testing
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+}
+
+application {
+    mainClass = 'com.beatclick.BeatClick'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Task to create directories for assets and data
+task createDirs {
+    doLast {
+        mkdir 'assets'
+        mkdir 'assets/songs'
+        mkdir 'data'
+    }
+}
+
+// Make sure the directories are created before building
+processResources.dependsOn createDirs
+
+// Copy resource files
+processResources {
+    from('src/main/resources') {
+        include '**/*'
+    }
+}
+
+// Create a fat jar with all dependencies
+jar {
+    manifest {
+        attributes 'Main-Class': 'com.beatclick.BeatClick'
+    }
+    
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
