@@ -105,30 +105,40 @@ public class GamePanel extends JPanel {
         notes.add(note);
     }
     
-    /**
-     * Updates all animations and effects
-     */
+        /**
+         * Updates all animations and effects
+         */
     public void updateAnimations() {
         // Update notes
         long currentTime = System.currentTimeMillis();
-        Iterator<Note> noteIterator = notes.iterator();
-        while (noteIterator.hasNext()) {
-            Note note = noteIterator.next();
+        
+        // Collect notes to remove instead of removing during iteration
+        List<Note> notesToRemove = new ArrayList<>();
+        for (Note note : notes) {
             note.updatePosition(currentTime);
             
-            // Remove notes that have moved past the bottom of the screen
+            // Mark notes that have moved past the bottom of the screen for removal
             if (note.getYPosition() > 1.1f) {
-                noteIterator.remove();
+                notesToRemove.add(note);
             }
         }
         
-        // Update visual effects
-        Iterator<VisualEffect> effectIterator = effects.iterator();
-        while (effectIterator.hasNext()) {
-            VisualEffect effect = effectIterator.next();
+        // Remove collected notes
+        if (!notesToRemove.isEmpty()) {
+            notes.removeAll(notesToRemove);
+        }
+        
+        // Update visual effects - similar approach
+        List<VisualEffect> effectsToRemove = new ArrayList<>();
+        for (VisualEffect effect : effects) {
             if (effect.update()) {
-                effectIterator.remove();
+                effectsToRemove.add(effect);
             }
+        }
+        
+        // Remove collected effects
+        if (!effectsToRemove.isEmpty()) {
+            effects.removeAll(effectsToRemove);
         }
     }
     
