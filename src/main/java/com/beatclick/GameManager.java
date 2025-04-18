@@ -12,7 +12,7 @@ public class GameManager {
     private final JFrame parentWindow;
     private GamePanel gamePanel;
     private GameState gameState;
-    
+    private BeatClick mainApp;
     // Thread management
     private ExecutorService threadPool;
     private MusicPlayer musicPlayer;
@@ -93,6 +93,13 @@ public class GameManager {
             DatabaseManager.saveScore(gameState.getSongId(), gameState.getScore());
         }
     }
+    /**
+ * Sets the main application reference
+ * @param mainApp The main application
+ */
+    public void setMainApp(BeatClick mainApp) {
+        this.mainApp = mainApp;
+}
     
     /**
      * Pauses the current game
@@ -192,7 +199,7 @@ public class GameManager {
             JOptionPane.showMessageDialog(parentWindow, message, "Game Over", JOptionPane.INFORMATION_MESSAGE);
             
             // Return to menu
-            ((BeatClick) parentWindow).returnToMenu();
+            mainApp.returnToMenu();
         });
     }
     
@@ -235,4 +242,12 @@ public class GameManager {
     public Object getSyncLock() {
         return syncLock;
     }
+    /**
+ * Gets the input processor
+ * @return The input processor
+ */
+    public InputProcessor getInputProcessor() {
+        return inputProcessor;
+    }
+
 }
