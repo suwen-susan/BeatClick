@@ -25,6 +25,8 @@ public class BeatClick {
     public BeatClick() {
         initializeUI();
         gameManager = new GameManager(mainWindow);
+        gameManager.setMainApp(this);
+
     }
     
     /**
