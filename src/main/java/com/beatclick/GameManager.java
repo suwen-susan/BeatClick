@@ -50,7 +50,11 @@ public class GameManager {
 
         // Configure input handler
         gamePanel.configureInputHandler(new InputHandler(this));
-        
+
+        // Set up game panel and add it to the main window
+        gamePanel.setFocusable(true);
+        gamePanel.requestFocusInWindow();
+
         // Initialize game components
         musicPlayer = new MusicPlayer(songId, this);
         noteGenerator = new NoteGenerator(songId, this);
