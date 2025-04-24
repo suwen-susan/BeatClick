@@ -41,7 +41,13 @@ public class GameManager {
     public void startGame(String songId, GamePanel gamePanel) {
         this.gamePanel = gamePanel;
         this.gameState = new GameState();
-        
+
+        // Set up game state
+        gamePanel.setGameState(gameState);
+
+        // Start timing synchronization
+        startTimingSync();
+
         // Configure input handler
         gamePanel.configureInputHandler(new InputHandler(this));
         
@@ -58,8 +64,7 @@ public class GameManager {
         threadPool.submit(inputProcessor);
         threadPool.submit(animationController);
         
-        // Start timing synchronization
-        startTimingSync();
+
     }
     
     /**

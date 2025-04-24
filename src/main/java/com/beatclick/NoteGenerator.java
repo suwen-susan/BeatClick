@@ -88,6 +88,7 @@ public class NoteGenerator implements Runnable {
                 
                 // Skip notes that should have already spawned
                 long currentTime = gameManager.getGameState().getCurrentGameTime();
+                // System.out.printf("DEBUG spawnTime=%d, currentTime=%d, lalaneIndex=%d%n", spawnTime, currentTime, laneIndex);
                 if (spawnTime < currentTime) {
                     continue;
                 }

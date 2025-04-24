@@ -38,7 +38,8 @@ public class GamePanel extends JPanel {
     // Game state
     private int score = 0;
     private int combo = 0;
-    
+    private GameState gameState;
+
     /**
      * Inner class for visual effects (hit animations, etc.)
      */
@@ -110,7 +111,7 @@ public class GamePanel extends JPanel {
          */
     public void updateAnimations() {
         // Update notes
-        long currentTime = System.currentTimeMillis();
+        long currentTime = gameState.getCurrentGameTime();
         
         // Collect notes to remove instead of removing during iteration
         List<Note> notesToRemove = new ArrayList<>();
@@ -118,7 +119,7 @@ public class GamePanel extends JPanel {
             note.updatePosition(currentTime);
             
             // Mark notes that have moved past the bottom of the screen for removal
-            if (note.getYPosition() > 1.1f) {
+            if (note.getYPosition() >= 1.0f) {
                 notesToRemove.add(note);
             }
         }
@@ -256,5 +257,13 @@ public class GamePanel extends JPanel {
             int laneX = i * laneWidth;
             g2d.drawString(keyHints[i], laneX + laneWidth/2 - 5, height - 20);
         }
+    }
+
+    /**
+     * Sets the game state
+     * @param gs The game state
+     */
+    public void setGameState(GameState gs) {
+        this.gameState = gs;
     }
 }
