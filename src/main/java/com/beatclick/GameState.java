@@ -230,6 +230,33 @@ public class GameState {
         
         return false;
     }
+
+    /**
+     * 尝试击中指定车道的音符。
+     * @param laneIndex 车道编号
+     * @param clickTime 玩家点击时的游戏时间（ms）
+     * @return 如果命中，返回该 Note 对象；否则返回 null
+     */
+    public Note hitNote(int laneIndex, long clickTime) {
+        Note hit = null;
+        // 遍历所有正在激活的音符
+        for (Note note : activeNotes) {
+            if (note.getLaneIndex() == laneIndex) {
+                long diff = Math.abs(clickTime - note.getHitTime());
+                if (diff <= HIT_WINDOW_MS) {
+                    hit = note;
+                    break;
+                }
+            }
+        }
+        if (hit != null) {
+            // 把它从 activeNotes 移除，加入 processedNotes
+            activeNotes.remove(hit);
+            processedNotes.add(hit);
+            // 增分逻辑保留在 GameManager 里
+        }
+        return hit;
+    }
     
     /**
      * Gets a list of all active notes

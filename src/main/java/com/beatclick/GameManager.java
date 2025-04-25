@@ -39,6 +39,7 @@ public class GameManager {
      * @param gamePanel The game panel for rendering
      */
     public void startGame(String songId, GamePanel gamePanel) {
+        // System.out.println("DEBUG: startGame got panel → " + gamePanel);
         this.gamePanel = gamePanel;
         this.gameState = new GameState();
 
@@ -146,30 +147,34 @@ public class GameManager {
      * @return true if a note was hit, false otherwise
      */
     public boolean processNoteClick(int laneIndex, long clickTime) {
-        if (!gameRunning || gameState.isPaused()) {
-            return false;
-        }
-        
-        boolean noteHit = gameState.checkNoteHit(laneIndex, clickTime);
-        
-        if (noteHit) {
+        // System.out.println("DEBUG: using panel → " + gamePanel);
+        // System.out.printf("DEBUG: click lane=%d @%dms%n", laneIndex, clickTime);
+        if (!gameRunning || gameState.isPaused()) return false;
+        // 1) 尝试击中，拿到被击中的 Note 对象
+        Note hit = gameState.hitNote(laneIndex, clickTime);
+        // System.out.println("DEBUG: hitNote returned → " + hit);
+        if (hit != null) {
+            // 2) 高亮反馈：用现有的“绿闪”效果，或者直接给该 Note 加个视觉特效
             gamePanel.showHitEffect(laneIndex);
+            // 3) 立即从渲染列表移除
+            gamePanel.removeNote(hit);
+            // 4) 更新分数
             gameState.incrementScore();
         } else {
             gamePanel.showMissEffect(laneIndex);
             gameState.incrementMisses();
         }
-        
+
         gamePanel.updateScore(gameState.getScore());
-        
-        // Check for game over condition
+
+        // 检查是否游戏结束…
         if (gameState.getMisses() >= gameState.getMaxMisses()) {
             gameOver();
         }
-        
-        return noteHit;
+        return hit != null;
     }
-    
+
+
     /**
      * Adds a new note to the game state
      * @param laneIndex The lane index for the note

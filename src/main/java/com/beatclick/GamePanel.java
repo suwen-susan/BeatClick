@@ -105,14 +105,27 @@ public class GamePanel extends JPanel {
     public void addNote(Note note) {
         notes.add(note);
     }
-    
-        /**
-         * Updates all animations and effects
-         */
+
+    /**
+     * Removes a note from rendering (e.g. after it's hit)
+     * @param note The note to remove
+     */
+    public void removeNote(Note note) {
+        // System.out.println("DEBUG: removeNote() called on → " + note);
+        boolean wasPresent = notes.remove(note);
+        // System.out.println("DEBUG: removeNote() result=" + wasPresent + ", remaining notes=" + notes.size());
+        repaint();
+    }
+
+    /**
+     * Updates all animations and effects
+     */
     public void updateAnimations() {
+        // Move the notes from upcoming to active
+        gameState.updateNotes();
         // Update notes
         long currentTime = gameState.getCurrentGameTime();
-        
+        // System.out.println("DEBUG: updateAnimations @"+ currentTime +"ms, notes="+notes);
         // Collect notes to remove instead of removing during iteration
         List<Note> notesToRemove = new ArrayList<>();
         for (Note note : notes) {
@@ -182,6 +195,7 @@ public class GamePanel extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        // System.out.println("DEBUG: paintComponent notes=" + notes);
         Graphics2D g2d = (Graphics2D) g;
         
         // Enable antialiasing for smoother graphics

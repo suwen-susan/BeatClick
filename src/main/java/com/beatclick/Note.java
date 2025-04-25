@@ -10,7 +10,8 @@ public class Note {
     private long spawnTime; // When the note should appear on screen
     private long hitTime;   // When the note should be hit (reach the target line)
     private float yPosition; // Current Y position for rendering (0.0 to 1.0, where 1.0 is bottom)
-    
+
+    private static final float TARGET_POSITION = 0.85f; //和 GamePanel 里的 TARGET_POSITION 保持一致
     /**
      * Constructor
      * @param laneIndex The lane index where this note appears
@@ -69,15 +70,26 @@ public class Note {
      * @param currentTime The current game time in milliseconds
      */
     public void updatePosition(long currentTime) {
-        // Calculate progress from spawn to hit time
         if (currentTime < spawnTime) {
+            // 未到生成时间，始终在顶端
             yPosition = 0.0f;
-        } else if (currentTime > hitTime) {
-            yPosition = 1.0f;
         } else {
-            float totalTravelTime = hitTime - spawnTime;
-            float elapsedTime = currentTime - spawnTime;
-            yPosition = elapsedTime / totalTravelTime;
+            // 1) 先算出从 spawnTime 到 hitTime 的“旅行时间”
+            float travelTime = hitTime - spawnTime;               // = NOTE_TRAVEL_TIME_MS
+
+            // 2) 根据目标线归一化位置，推算出整个从 spawn 到“屏幕底端”所需的总时长
+            //    这样 hitTime 恰好对应到 TARGET_POSITION，底端对应到 1.0
+            float totalTime = travelTime / TARGET_POSITION;
+
+            // 3) 计算当前经过时间
+            float elapsed = currentTime - spawnTime;
+
+            // 4) 进度 = elapsed / totalTime，但不超过 1.0
+            float progress = elapsed / totalTime;
+            if (progress > 1.0f) progress = 1.0f;
+
+            // 5) 最终 yPosition 就是 0→1 的进度
+            yPosition = progress;
         }
     }
     
