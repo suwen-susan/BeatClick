@@ -42,6 +42,9 @@ public class GameManager {
         // System.out.println("DEBUG: startGame got panel → " + gamePanel);
         this.gamePanel = gamePanel;
         this.gameState = new GameState();
+        
+        // Set the song ID in the game state - THIS LINE WAS MISSING
+        this.gameState.setSongId(songId);
 
         // Set up game state
         gamePanel.setGameState(gameState);
@@ -68,8 +71,6 @@ public class GameManager {
         threadPool.submit(noteGenerator);
         threadPool.submit(inputProcessor);
         threadPool.submit(animationController);
-        
-
     }
     
     /**
@@ -103,13 +104,14 @@ public class GameManager {
             DatabaseManager.saveScore(gameState.getSongId(), gameState.getScore());
         }
     }
+    
     /**
- * Sets the main application reference
- * @param mainApp The main application
- */
+     * Sets the main application reference
+     * @param mainApp The main application
+     */
     public void setMainApp(BeatClick mainApp) {
         this.mainApp = mainApp;
-}
+    }
     
     /**
      * Pauses the current game
@@ -154,7 +156,7 @@ public class GameManager {
         Note hit = gameState.hitNote(laneIndex, clickTime);
         // System.out.println("DEBUG: hitNote returned → " + hit);
         if (hit != null) {
-            // 2) 高亮反馈：用现有的“绿闪”效果，或者直接给该 Note 加个视觉特效
+            // 2) 高亮反馈：用现有的"绿闪"效果，或者直接给该 Note 加个视觉特效
             gamePanel.showHitEffect(laneIndex);
             // 3) 立即从渲染列表移除
             gamePanel.removeNote(hit);
@@ -256,12 +258,12 @@ public class GameManager {
     public Object getSyncLock() {
         return syncLock;
     }
+    
     /**
- * Gets the input processor
- * @return The input processor
- */
+     * Gets the input processor
+     * @return The input processor
+     */
     public InputProcessor getInputProcessor() {
         return inputProcessor;
     }
-
 }
