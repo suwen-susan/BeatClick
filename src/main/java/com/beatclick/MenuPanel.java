@@ -166,7 +166,7 @@ public class MenuPanel extends JPanel {
         songButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         songButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         songButton.setBackground(new Color(60, 60, 70));
-        songButton.setForeground(Color.WHITE);
+        songButton.setForeground(Color.BLACK);
         songButton.setFocusPainted(false);
         songButton.setBorder(BorderFactory.createCompoundBorder(
             BorderFactory.createLineBorder(new Color(80, 80, 90)),

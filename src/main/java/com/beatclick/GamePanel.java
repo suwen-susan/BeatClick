@@ -263,6 +263,43 @@ public class GamePanel extends JPanel {
             g2d.setFont(new Font("Arial", Font.BOLD, 20));
             g2d.drawString("Combo: " + combo + "x", 20, 60);
         }
+
+        // Draw game state (e.g. health bar)
+        if (gameState != null) {
+            int misses = gameState.getMisses();
+            int maxMisses = gameState.getMaxMisses();
+            int remainingLives = maxMisses - misses;
+            
+            // Health bar dimensions
+            int healthBarWidth = 150;
+            int healthBarHeight = 20;
+            int healthBarX = width - healthBarWidth - 20; // right side padding
+            int healthBarY = 20; // top padding
+            
+            // draw health bar background
+            g2d.setColor(new Color(50, 50, 50, 200));
+            g2d.fillRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
+            
+            // calculate health percentage
+            float healthPercentage = (float) remainingLives / maxMisses;
+            int currentHealthWidth = (int) (healthBarWidth * healthPercentage);
+            
+            // change color based on health percentage
+            if (healthPercentage > 0.6) {
+                g2d.setColor(new Color(50, 205, 50)); // green -- safe
+            } else if (healthPercentage > 0.3) {
+                g2d.setColor(new Color(255, 165, 0)); // orange -- caution
+            } else {
+                g2d.setColor(new Color(220, 20, 60)); // red -- danger
+            }
+            
+            // draw health bar
+            g2d.fillRoundRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight, 10, 10);
+            
+            // draw health bar border
+            g2d.setColor(Color.WHITE);
+            g2d.drawRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
+        }
         
         // Draw lane key hints at the bottom
         g2d.setFont(new Font("Arial", Font.BOLD, 16));
