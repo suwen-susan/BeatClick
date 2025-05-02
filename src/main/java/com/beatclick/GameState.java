@@ -10,9 +10,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class GameState {
     
+    /**
+     * Rating - Represents the quality of a note hit
+     */
+    public enum Rating {
+        EXCELLENT, GOOD, POOR, MISS
+    }
+    
     // Game configuration
     private static final int DEFAULT_MAX_MISSES = 10;
     private static final int HIT_WINDOW_MS = 150; // Timing window for note hits in milliseconds
+    private static final int EXCELLENT_WINDOW_MS = 50; // Perfect timing
+    private static final int GOOD_WINDOW_MS = 100; // Good timing
+    // POOR is between GOOD_WINDOW_MS and HIT_WINDOW_MS
     
     // Game state variables
     private String songId;
@@ -23,6 +33,15 @@ public class GameState {
     private int maxMisses;
     private boolean paused;
     private long gameStartTime;
+    
+    // Reference to GameManager for callbacks
+    private GameManager gameManager;
+    
+    // Rating counters
+    private int excellentCount;
+    private int goodCount;
+    private int poorCount;
+    private int missCount;
     
     // Notes management
     private final List<Note> activeNotes; // Notes currently on screen
@@ -40,10 +59,24 @@ public class GameState {
         this.maxMisses = DEFAULT_MAX_MISSES;
         this.paused = false;
         
+        // Initialize rating counters
+        this.excellentCount = 0;
+        this.goodCount = 0;
+        this.poorCount = 0;
+        this.missCount = 0;
+        
         // Use thread-safe collections for notes
         this.activeNotes = new CopyOnWriteArrayList<>();
         this.upcomingNotes = new CopyOnWriteArrayList<>();
         this.processedNotes = new CopyOnWriteArrayList<>();
+    }
+    
+    /**
+     * Sets the reference to the game manager
+     * @param gameManager The game manager
+     */
+    public void setGameManager(GameManager gameManager) {
+        this.gameManager = gameManager;
     }
     
     /**
@@ -71,29 +104,54 @@ public class GameState {
     }
     
     /**
-     * Increments the player's score based on current combo
+     * Increments the player's score based on current combo and rating
+     * @param rating The rating of the hit
      */
-    public void incrementScore() {
+    public void incrementScore(Rating rating) {
         // Base score for each hit
-        int baseScore = 100;
+        int baseScore = 0;
         
-        // Increase combo
-        combo++;
-        if (combo > maxCombo) {
-            maxCombo = combo;
+        // Score based on rating
+        switch (rating) {
+            case EXCELLENT:
+                baseScore = 300;
+                excellentCount++;
+                break;
+            case GOOD:
+                baseScore = 200;
+                goodCount++;
+                break;
+            case POOR:
+                baseScore = 100;
+                poorCount++;
+                break;
+            case MISS:
+                missCount++;
+                return; // No score for miss
         }
         
-        // Calculate score with combo multiplier
-        int comboMultiplier = Math.min(combo / 10 + 1, 4); // Cap multiplier at 4x
-        score += baseScore * comboMultiplier;
+        // Increase combo for non-miss hits
+        if (rating != Rating.MISS) {
+            combo++;
+            if (combo > maxCombo) {
+                maxCombo = combo;
+            }
+            
+            // Calculate score with combo multiplier
+            int comboMultiplier = Math.min(combo / 10 + 1, 4); // Cap multiplier at 4x
+            score += baseScore * comboMultiplier;
+        } else {
+            combo = 0; // Reset combo on miss
+        }
     }
     
     /**
-     * Increments the number of misses and resets combo
+     * Increments the number of misses
      */
     public void incrementMisses() {
         misses++;
         combo = 0; // Reset combo on miss
+        missCount++;
     }
     
     /**
@@ -118,6 +176,38 @@ public class GameState {
      */
     public void setMaxMisses(int maxMisses) {
         this.maxMisses = maxMisses;
+    }
+    
+    /**
+     * Gets the count of excellent hits
+     * @return The count of excellent hits
+     */
+    public int getExcellentCount() {
+        return excellentCount;
+    }
+    
+    /**
+     * Gets the count of good hits
+     * @return The count of good hits
+     */
+    public int getGoodCount() {
+        return goodCount;
+    }
+    
+    /**
+     * Gets the count of poor hits
+     * @return The count of poor hits
+     */
+    public int getPoorCount() {
+        return poorCount;
+    }
+    
+    /**
+     * Gets the count of misses
+     * @return The count of misses
+     */
+    public int getMissCount() {
+        return missCount;
     }
     
     /**
@@ -193,6 +283,16 @@ public class GameState {
             if (currentTime > note.getHitTime() + HIT_WINDOW_MS) {
                 missedNotes.add(note);
                 incrementMisses();
+                
+                // Notify GameManager about the missed note for visual effects
+                if (gameManager != null) {
+                    gameManager.noteMissed(note);
+                }
+                
+                // Check for game over
+                if (misses >= maxMisses && gameManager != null) {
+                    gameManager.gameOver();
+                }
             }
         }
         
@@ -201,13 +301,35 @@ public class GameState {
     }
     
     /**
-     * Checks if a player hit a note
+     * Checks if there's a note in the given lane that's close to being hit
+     * @param laneIndex The lane index to check
+     * @param currentTime The current game time
+     * @return true if there's a close note, false otherwise
+     */
+    public boolean hasNearbyNote(int laneIndex, long currentTime) {
+        final long NEARBY_THRESHOLD_MS = 300; // Consider notes within 300ms "nearby"
+        
+        for (Note note : activeNotes) {
+            if (note.getLaneIndex() == laneIndex) {
+                long timeDifference = Math.abs(currentTime - note.getHitTime());
+                if (timeDifference <= NEARBY_THRESHOLD_MS) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Checks if a player hit a note and returns the rating
      * @param laneIndex The lane index where the player clicked
      * @param clickTime The time of the click
-     * @return true if a note was hit, false otherwise
+     * @return A HitResult object containing the hit note and rating, or null if no hit
      */
-    public boolean checkNoteHit(int laneIndex, long clickTime) {
-        Note hitNote = null;
+    public HitResult hitNote(int laneIndex, long clickTime) {
+        Note hit = null;
+        Rating rating = Rating.MISS;
         
         // Find the closest note in the specified lane
         for (Note note : activeNotes) {
@@ -215,47 +337,50 @@ public class GameState {
                 long timeDifference = Math.abs(clickTime - note.getHitTime());
                 
                 if (timeDifference <= HIT_WINDOW_MS) {
-                    hitNote = note;
-                    break;
-                }
-            }
-        }
-        
-        // If a note was hit, remove it from active notes and add to processed notes
-        if (hitNote != null) {
-            activeNotes.remove(hitNote);
-            processedNotes.add(hitNote);
-            return true;
-        }
-        
-        return false;
-    }
-
-    /**
-     * 尝试击中指定车道的音符。
-     * @param laneIndex 车道编号
-     * @param clickTime 玩家点击时的游戏时间（ms）
-     * @return 如果命中，返回该 Note 对象；否则返回 null
-     */
-    public Note hitNote(int laneIndex, long clickTime) {
-        Note hit = null;
-        // 遍历所有正在激活的音符
-        for (Note note : activeNotes) {
-            if (note.getLaneIndex() == laneIndex) {
-                long diff = Math.abs(clickTime - note.getHitTime());
-                if (diff <= HIT_WINDOW_MS) {
                     hit = note;
+                    
+                    // Determine rating based on timing accuracy
+                    if (timeDifference <= EXCELLENT_WINDOW_MS) {
+                        rating = Rating.EXCELLENT;
+                    } else if (timeDifference <= GOOD_WINDOW_MS) {
+                        rating = Rating.GOOD;
+                    } else {
+                        rating = Rating.POOR;
+                    }
                     break;
                 }
             }
         }
+        
         if (hit != null) {
-            // 把它从 activeNotes 移除，加入 processedNotes
+            // Remove hit note from active notes and add to processed notes
             activeNotes.remove(hit);
             processedNotes.add(hit);
-            // 增分逻辑保留在 GameManager 里
+            return new HitResult(hit, rating);
         }
-        return hit;
+        
+        return null;
+    }
+    
+    /**
+     * Inner class to hold the result of a hit attempt
+     */
+    public static class HitResult {
+        private final Note note;
+        private final Rating rating;
+        
+        public HitResult(Note note, Rating rating) {
+            this.note = note;
+            this.rating = rating;
+        }
+        
+        public Note getNote() {
+            return note;
+        }
+        
+        public Rating getRating() {
+            return rating;
+        }
     }
     
     /**

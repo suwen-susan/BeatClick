@@ -39,12 +39,14 @@ public class GameManager {
      * @param gamePanel The game panel for rendering
      */
     public void startGame(String songId, GamePanel gamePanel) {
-        // System.out.println("DEBUG: startGame got panel → " + gamePanel);
         this.gamePanel = gamePanel;
         this.gameState = new GameState();
         
-        // Set the song ID in the game state - THIS LINE WAS MISSING
+        // Set the song ID in the game state
         this.gameState.setSongId(songId);
+        
+        // Set the game manager reference in game state
+        this.gameState.setGameManager(this);
 
         // Set up game state
         gamePanel.setGameState(gameState);
@@ -142,41 +144,77 @@ public class GameManager {
         }
     }
     
-    /**
-     * Processes a note click by the player
-     * @param laneIndex The lane index where the click occurred
-     * @param clickTime The time of the click
-     * @return true if a note was hit, false otherwise
-     */
-    public boolean processNoteClick(int laneIndex, long clickTime) {
-        // System.out.println("DEBUG: using panel → " + gamePanel);
-        // System.out.printf("DEBUG: click lane=%d @%dms%n", laneIndex, clickTime);
-        if (!gameRunning || gameState.isPaused()) return false;
-        // 1) 尝试击中，拿到被击中的 Note 对象
-        Note hit = gameState.hitNote(laneIndex, clickTime);
-        // System.out.println("DEBUG: hitNote returned → " + hit);
-        if (hit != null) {
-            // 2) 高亮反馈：用现有的"绿闪"效果，或者直接给该 Note 加个视觉特效
-            gamePanel.showHitEffect(laneIndex);
-            // 3) 立即从渲染列表移除
-            gamePanel.removeNote(hit);
-            // 4) 更新分数
-            gameState.incrementScore();
-        } else {
-            gamePanel.showMissEffect(laneIndex);
-            gameState.incrementMisses();
-        }
-
+/**
+ * Processes a note click by the player
+ * @param laneIndex The lane index where the click occurred
+ * @param clickTime The time of the click
+ * @return true if a note was hit, false otherwise
+ */
+public boolean processNoteClick(int laneIndex, long clickTime) {
+    if (!gameRunning || gameState.isPaused()) return false;
+    
+    // Attempt to hit a note and get the rating
+    GameState.HitResult hitResult = gameState.hitNote(laneIndex, clickTime);
+    
+    if (hitResult != null) {
+        // Successfully hit a note
+        Note note = hitResult.getNote();
+        GameState.Rating rating = hitResult.getRating();
+        
+        // Apply the rating and update score
+        gameState.incrementScore(rating);
+        
+        // Calculate actual Y position of the note
+        int height = gamePanel.getHeight();
+        int noteY = (int)(note.getYPosition() * height);
+        
+        // Show visual effect based on rating at the note's position
+        gamePanel.showHitEffect(laneIndex, rating, noteY);
+        
+        // Remove the note from rendering
+        gamePanel.removeNote(note);
+        
+        // Update display
         gamePanel.updateScore(gameState.getScore());
+        gamePanel.updateCombo(gameState.getCombo());
+        
+        return true;
+    } else {
+        // No note was hit - check if there's a nearby note to avoid double-counting misses
+        boolean hasNearbyNote = gameState.hasNearbyNote(laneIndex, clickTime);
+        
+        if (!hasNearbyNote) {
+            // Only count as a separate miss if there's no nearby note
+            gamePanel.showMissEffect(laneIndex);
+            gameState.incrementScore(GameState.Rating.MISS);
+            gameState.incrementMisses(); // Add this line to deduct health
+            gamePanel.updateCombo(0); // Reset combo display
+            
+            // Check for game over after incrementing misses
+            if (gameState.getMisses() >= gameState.getMaxMisses()) {
+                gameOver();
+            }
+        }
+        
+        return false;
+    }
+}
 
-        // 检查是否游戏结束…
+    /**
+     * Called when a note passes the target line without being hit
+     * @param note The missed note
+     */
+    public void noteMissed(Note note) {
+        // Show a miss effect at the bottom of the screen
+        int laneIndex = note.getLaneIndex();
+        gamePanel.showMissEffectAtBottom(laneIndex);
+        
+        // Check if we've reached game over condition
         if (gameState.getMisses() >= gameState.getMaxMisses()) {
             gameOver();
         }
-        return hit != null;
     }
-
-
+    
     /**
      * Adds a new note to the game state
      * @param laneIndex The lane index for the note
@@ -194,7 +232,11 @@ public class GameManager {
     /**
      * Called when the game is over
      */
-    private void gameOver() {
+    public void gameOver() {
+        if (!gameRunning) {
+            return; // Prevent multiple game over calls
+        }
+        
         gameRunning = false;
         
         // Stop music and threads
@@ -205,10 +247,18 @@ public class GameManager {
         // Show game over dialog
         SwingUtilities.invokeLater(() -> {
             int score = gameState.getScore();
-            String message = "Game Over!\nYour score: " + score;
+            int excellent = gameState.getExcellentCount();
+            int good = gameState.getGoodCount();
+            int poor = gameState.getPoorCount();
+            int miss = gameState.getMissCount();
+            
+            String message = String.format(
+                "Game Over!\n\nYour score: %d\n\nExcellent: %d\nGood: %d\nPoor: %d\nMiss: %d",
+                score, excellent, good, poor, miss
+            );
             
             if (DatabaseManager.isHighScore(gameState.getSongId(), score)) {
-                message += "\nNew High Score!";
+                message += "\n\nNew High Score!";
                 DatabaseManager.saveScore(gameState.getSongId(), score);
             }
             
