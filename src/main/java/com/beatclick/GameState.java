@@ -35,7 +35,7 @@ public class GameState {
     private long gameStartTime;
     
     // Reference to GameManager for callbacks
-    private GameManager gameManager;
+    // private GameManager gameManager;
     
     // Rating counters
     private int excellentCount;
@@ -71,13 +71,13 @@ public class GameState {
         this.processedNotes = new CopyOnWriteArrayList<>();
     }
     
-    /**
-     * Sets the reference to the game manager
-     * @param gameManager The game manager
-     */
-    public void setGameManager(GameManager gameManager) {
-        this.gameManager = gameManager;
-    }
+    // /**
+    //  * Sets the reference to the game manager
+    //  * @param gameManager The game manager
+    //  */
+    // public void setGameManager(GameManager gameManager) {
+    //     this.gameManager = gameManager;
+    // }
     
     /**
      * Sets the song ID for the current game
@@ -114,11 +114,11 @@ public class GameState {
         // Score based on rating
         switch (rating) {
             case EXCELLENT:
-                baseScore = 300;
+                baseScore = 200;
                 excellentCount++;
                 break;
             case GOOD:
-                baseScore = 200;
+                baseScore = 150;
                 goodCount++;
                 break;
             case POOR:
@@ -127,6 +127,7 @@ public class GameState {
                 break;
             case MISS:
                 missCount++;
+                combo = 0; // Reset combo on miss
                 return; // No score for miss
         }
         
@@ -140,9 +141,7 @@ public class GameState {
             // Calculate score with combo multiplier
             int comboMultiplier = Math.min(combo / 10 + 1, 4); // Cap multiplier at 4x
             score += baseScore * comboMultiplier;
-        } else {
-            combo = 0; // Reset combo on miss
-        }
+        } 
     }
     
     /**
@@ -284,15 +283,15 @@ public class GameState {
                 missedNotes.add(note);
                 incrementMisses();
                 
-                // Notify GameManager about the missed note for visual effects
-                if (gameManager != null) {
-                    gameManager.noteMissed(note);
-                }
+                // // Notify GameManager about the missed note for visual effects
+                // if (gameManager != null) {
+                //     gameManager.noteMissed(note);
+                // }
                 
-                // Check for game over
-                if (misses >= maxMisses && gameManager != null) {
-                    gameManager.gameOver();
-                }
+                // // Check for game over
+                // if (misses >= maxMisses && gameManager != null) {
+                //     gameManager.gameOver();
+                // }
             }
         }
         

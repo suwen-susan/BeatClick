@@ -54,52 +54,52 @@ public class GamePanel extends JPanel {
         private final EffectType type;
         private int framesRemaining;
         private String text;
-        private int yPosition; // Y position for the effect
-        private boolean isAtTargetLine; // Whether effect is shown at target line
-        private boolean isAtBottom; // Whether effect is shown at bottom
+        // private int yPosition; // Y position for the effect
+        // private boolean isAtTargetLine; // Whether effect is shown at target line
+        // private boolean isAtBottom; // Whether effect is shown at bottom
         
         enum EffectType {
             EXCELLENT, GOOD, POOR, MISS
         }
         
+        // /**
+        //  * Constructor for effects at target line (when no note was hit)
+        //  */
+        // public VisualEffect(int laneIndex, EffectType type, int duration) {
+        //     this.laneIndex = laneIndex;
+        //     this.type = type;
+        //     this.framesRemaining = duration;
+        //     // this.isAtTargetLine = true;
+        //     // this.isAtBottom = false;
+        //     // this.yPosition = -1; // Will be calculated in render based on target line
+            
+        //     // Set text based on effect type
+        //     switch (type) {
+        //         case EXCELLENT:
+        //             this.text = "EXCELLENT";
+        //             break;
+        //         case GOOD:
+        //             this.text = "GOOD";
+        //             break;
+        //         case POOR:
+        //             this.text = "POOR";
+        //             break;
+        //         case MISS:
+        //             this.text = "MISS";
+        //             break;
+        //     }
+        // }
+        
         /**
-         * Constructor for effects at target line (when no note was hit)
+         * Constructor for effects at note position
          */
         public VisualEffect(int laneIndex, EffectType type, int duration) {
             this.laneIndex = laneIndex;
             this.type = type;
             this.framesRemaining = duration;
-            this.isAtTargetLine = true;
-            this.isAtBottom = false;
-            this.yPosition = -1; // Will be calculated in render based on target line
-            
-            // Set text based on effect type
-            switch (type) {
-                case EXCELLENT:
-                    this.text = "EXCELLENT";
-                    break;
-                case GOOD:
-                    this.text = "GOOD";
-                    break;
-                case POOR:
-                    this.text = "POOR";
-                    break;
-                case MISS:
-                    this.text = "MISS";
-                    break;
-            }
-        }
-        
-        /**
-         * Constructor for effects at note position
-         */
-        public VisualEffect(int laneIndex, EffectType type, int duration, int yPosition) {
-            this.laneIndex = laneIndex;
-            this.type = type;
-            this.framesRemaining = duration;
-            this.isAtTargetLine = false;
-            this.isAtBottom = false;
-            this.yPosition = yPosition;
+            // this.isAtTargetLine = false;
+            // this.isAtBottom = false;
+            // this.yPosition = yPosition;
             
             // Set text based on effect type
             switch (type) {
@@ -133,22 +133,26 @@ public class GamePanel extends JPanel {
         public String getText() {
             return text;
         }
-        
-        public int getYPosition() {
-            return yPosition;
+
+        public int getFramesRemaining() {
+            return framesRemaining;
         }
         
-        public boolean isAtTargetLine() {
-            return isAtTargetLine;
-        }
+        // public int getYPosition() {
+        //     return yPosition;
+        // }
         
-        public boolean isAtBottom() {
-            return isAtBottom;
-        }
+        // public boolean isAtTargetLine() {
+        //     return isAtTargetLine;
+        // }
         
-        public void setAtBottom(boolean atBottom) {
-            this.isAtBottom = atBottom;
-        }
+        // public boolean isAtBottom() {
+        //     return isAtBottom;
+        // }
+        
+        // public void setAtBottom(boolean atBottom) {
+        //     this.isAtBottom = atBottom;
+        // }
     }
     
     /**
@@ -241,7 +245,7 @@ public class GamePanel extends JPanel {
      * @param rating The rating of the hit
      * @param noteYPosition The Y position of the note when hit
      */
-    public void showHitEffect(int laneIndex, GameState.Rating rating, int noteYPosition) {
+    public void showHitEffect(int laneIndex, GameState.Rating rating) {
         VisualEffect.EffectType effectType;
         
         switch (rating) {
@@ -263,7 +267,7 @@ public class GamePanel extends JPanel {
         int duration = (rating == GameState.Rating.EXCELLENT) ? 20 : 
                       (rating == GameState.Rating.GOOD) ? 15 : 10;
         
-        effects.add(new VisualEffect(laneIndex, effectType, duration, noteYPosition));
+        effects.add(new VisualEffect(laneIndex, effectType, duration));
     }
     
     /**
@@ -271,26 +275,26 @@ public class GamePanel extends JPanel {
      * @param laneIndex The lane index
      * @param rating The rating of the hit
      */
-    public void showHitEffect(int laneIndex, GameState.Rating rating) {
-        VisualEffect.EffectType effectType;
+    // public void showHitEffect(int laneIndex, GameState.Rating rating) {
+    //     VisualEffect.EffectType effectType;
         
-        switch (rating) {
-            case EXCELLENT:
-                effectType = VisualEffect.EffectType.EXCELLENT;
-                break;
-            case GOOD:
-                effectType = VisualEffect.EffectType.GOOD;
-                break;
-            case POOR:
-                effectType = VisualEffect.EffectType.POOR;
-                break;
-            default:
-                effectType = VisualEffect.EffectType.MISS;
-                break;
-        }
+    //     switch (rating) {
+    //         case EXCELLENT:
+    //             effectType = VisualEffect.EffectType.EXCELLENT;
+    //             break;
+    //         case GOOD:
+    //             effectType = VisualEffect.EffectType.GOOD;
+    //             break;
+    //         case POOR:
+    //             effectType = VisualEffect.EffectType.POOR;
+    //             break;
+    //         default:
+    //             effectType = VisualEffect.EffectType.MISS;
+    //             break;
+    //     }
         
-        effects.add(new VisualEffect(laneIndex, effectType, 10));
-    }
+    //     effects.add(new VisualEffect(laneIndex, effectType, 10));
+    // }
     
     /**
      * Shows a miss effect at the target line (when no note was present)
@@ -305,16 +309,17 @@ public class GamePanel extends JPanel {
      * @param laneIndex The lane index
      */
     public void showMissEffectAtBottom(int laneIndex) {
-        // Calculate the panel height
-        int height = getHeight();
+        // // Calculate the panel height
+        // int height = getHeight();
         
-        // Position the effect at the bottom of the screen (where notes exit)
-        int yPosition = height - 30; // Just above the key hints
+        // // Position the effect at the bottom of the screen (where notes exit)
+        // int yPosition = height - 30; // Just above the key hints
         
-        // Create a miss effect at the bottom position
-        VisualEffect effect = new VisualEffect(laneIndex, VisualEffect.EffectType.MISS, 15, yPosition);
-        effect.setAtBottom(true); // Mark as a bottom effect
-        effects.add(effect);
+        // // Create a miss effect at the bottom position
+        // VisualEffect effect = new VisualEffect(laneIndex, VisualEffect.EffectType.MISS, 15, yPosition);
+        // effect.setAtBottom(true); // Mark as a bottom effect
+        // effects.add(effect);
+        effects.add(new VisualEffect(laneIndex, VisualEffect.EffectType.MISS, 15));
     }
     
     /**
@@ -382,6 +387,76 @@ public class GamePanel extends JPanel {
             g2d.setColor(Color.WHITE);
             g2d.drawRoundRect(laneX + laneWidth/2 - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE, 10, 10);
         }
+
+        // Find the most recent/important effect for center display
+        boolean hasActiveEffect = false;
+        VisualEffect.EffectType centerEffectType = null;
+        int centerEffectRemaining = 0;
+
+        for (VisualEffect effect : effects) {
+            if (!hasActiveEffect || 
+                (centerEffectType == VisualEffect.EffectType.MISS && effect.getType() != VisualEffect.EffectType.MISS) ||
+                (centerEffectType == VisualEffect.EffectType.POOR && 
+                 (effect.getType() == VisualEffect.EffectType.GOOD || effect.getType() == VisualEffect.EffectType.EXCELLENT)) ||
+                (centerEffectType == VisualEffect.EffectType.GOOD && effect.getType() == VisualEffect.EffectType.EXCELLENT)) {
+                
+                hasActiveEffect = true;
+                centerEffectType = effect.getType();
+                centerEffectRemaining = effect.getFramesRemaining();
+            }
+        }
+
+        // Draw the center effect if there is one
+        if (hasActiveEffect) {
+            // Get effect details
+            Color effectColor;
+            String effectText;
+            
+            switch (centerEffectType) {
+                case EXCELLENT:
+                    effectColor = EXCELLENT_COLOR;
+                    effectText = "EXCELLENT";
+                    break;
+                case GOOD:
+                    effectColor = GOOD_COLOR;
+                    effectText = "GOOD";
+                    break;
+                case POOR:
+                    effectColor = POOR_COLOR;
+                    effectText = "POOR";
+                    break;
+                default:
+                    effectColor = MISS_COLOR;
+                    effectText = "MISS";
+                    break;
+            }
+            
+            // Add combo if applicable
+            if (combo > 1 && centerEffectType != VisualEffect.EffectType.MISS) {
+                effectText += " x" + combo;
+            }
+            
+            // Draw the center effect
+            int effectY = 80; // Distance from top
+            
+            // Calculate text dimensions
+            g2d.setFont(new Font("Arial", Font.BOLD, 24));
+            FontMetrics fm = g2d.getFontMetrics();
+            int textWidth = fm.stringWidth(effectText);
+            
+            // Background dimensions
+            int bgWidth = textWidth + 40;
+            int bgHeight = 50;
+            
+            // Draw background
+            g2d.setColor(effectColor);
+            g2d.fillRoundRect(width/2 - bgWidth/2, effectY - 25, bgWidth, bgHeight, 15, 15);
+            
+            // Draw text
+            g2d.setColor(Color.WHITE);
+            g2d.drawString(effectText, width/2 - textWidth/2, effectY + 8);
+        }
+
         
         // Draw visual effects
         for (VisualEffect effect : effects) {
@@ -405,74 +480,99 @@ public class GamePanel extends JPanel {
                     break;
             }
             
-            if (effect.isAtBottom()) {
-                // Display at the bottom of the screen with different style
-                int bottomEffectY = effect.getYPosition();
+            // Draw flash at target line
+            g2d.setColor(new Color(effectColor.getRed(), effectColor.getGreen(), effectColor.getBlue(), 100));
+            g2d.fillRect(laneX, targetY - 5, laneWidth, 15);
+
+            // // For note-based effects, highlight the area around the note
+            // g2d.setColor(effectColor);
+            // int effectWidth = laneWidth - 10; // Width of the effect area
+            // g2d.fillRoundRect(laneX + 5, effectY - 25, effectWidth, 50, 15, 15);
+            // // g2d.fillOval(laneX + laneWidth/2 - NOTE_SIZE - 5, effectY - NOTE_SIZE/2 - 5, 
+            // //             NOTE_SIZE + 10, NOTE_SIZE + 10);
+            
+            // // Draw effect text
+            // g2d.setColor(Color.WHITE);
+            // g2d.setFont(new Font("Arial", Font.BOLD, 16));
+            
+            // // Center the text in the lane
+            // FontMetrics fm = g2d.getFontMetrics();
+            // int textWidth = fm.stringWidth(effect.getText());
+            // int textX = laneX + (laneWidth - textWidth) / 2;
+            // g2d.drawString(effect.getText(), textX, effectY - NOTE_SIZE/2 - 10);
+            
+            // // Draw a semi-transparent background for the effect
+            // g2d.setColor(new Color(effectColor.getRed(), effectColor.getGreen(), effectColor.getBlue(), 100));
+            // g2d.fillRect(laneX, targetY - 5, laneWidth, 15);
+            
+            
+            // if (effect.isAtBottom()) {
+            //     // Display at the bottom of the screen with different style
+            //     int bottomEffectY = effect.getYPosition();
                 
-                // Draw a larger indicator for missed notes
-                g2d.setColor(effectColor);
-                g2d.fillRect(laneX, bottomEffectY - 20, laneWidth, 40);
+            //     // Draw a larger indicator for missed notes
+            //     g2d.setColor(effectColor);
+            //     g2d.fillRect(laneX, bottomEffectY - 20, laneWidth, 40);
                 
-                // Draw X mark or other miss indicator
-                g2d.setColor(Color.WHITE);
-                g2d.setFont(new Font("Arial", Font.BOLD, 24));
-                g2d.drawString("X", laneX + laneWidth/2 - 8, bottomEffectY + 8);
+            //     // Draw X mark or other miss indicator
+            //     g2d.setColor(Color.WHITE);
+            //     g2d.setFont(new Font("Arial", Font.BOLD, 24));
+            //     g2d.drawString("X", laneX + laneWidth/2 - 8, bottomEffectY + 8);
                 
-                // Draw effect text
-                g2d.setFont(new Font("Arial", Font.BOLD, 16));
-                FontMetrics fm = g2d.getFontMetrics();
-                int textWidth = fm.stringWidth(effect.getText());
-                int textX = laneX + (laneWidth - textWidth) / 2;
-                g2d.drawString(effect.getText(), textX, bottomEffectY - 25);
+            //     // Draw effect text
+            //     g2d.setFont(new Font("Arial", Font.BOLD, 16));
+            //     FontMetrics fm = g2d.getFontMetrics();
+            //     int textWidth = fm.stringWidth(effect.getText());
+            //     int textX = laneX + (laneWidth - textWidth) / 2;
+            //     g2d.drawString(effect.getText(), textX, bottomEffectY - 25);
                 
-            } else if (effect.isAtTargetLine()) {
-                // Display at target line
-                int effectY = targetY;
+            // } else if (effect.isAtTargetLine()) {
+            //     // Display at target line
+            //     int effectY = targetY;
                 
-                // Draw effect background at target line
-                g2d.setColor(effectColor);
-                g2d.fillRect(laneX, effectY - 10, laneWidth, 30);
+            //     // Draw effect background at target line
+            //     g2d.setColor(effectColor);
+            //     g2d.fillRect(laneX, effectY - 10, laneWidth, 30);
                 
-                // Draw effect text
-                g2d.setColor(Color.WHITE);
-                g2d.setFont(new Font("Arial", Font.BOLD, 16));
+            //     // Draw effect text
+            //     g2d.setColor(Color.WHITE);
+            //     g2d.setFont(new Font("Arial", Font.BOLD, 16));
                 
-                // Center the text in the lane
-                FontMetrics fm = g2d.getFontMetrics();
-                int textWidth = fm.stringWidth(effect.getText());
-                int textX = laneX + (laneWidth - textWidth) / 2;
-                g2d.drawString(effect.getText(), textX, effectY + 15);
+            //     // Center the text in the lane
+            //     FontMetrics fm = g2d.getFontMetrics();
+            //     int textWidth = fm.stringWidth(effect.getText());
+            //     int textX = laneX + (laneWidth - textWidth) / 2;
+            //     g2d.drawString(effect.getText(), textX, effectY + 15);
                 
-            } else {
-                // Display at note position
-                int effectY = effect.getYPosition();
+            // } else {
+            //     // Display at note position
+            //     int effectY = effect.getYPosition();
                 
-                // For note-based effects, highlight the area around the note
-                g2d.setColor(effectColor);
-                g2d.fillOval(laneX + laneWidth/2 - NOTE_SIZE - 5, effectY - NOTE_SIZE/2 - 5, 
-                           NOTE_SIZE + 10, NOTE_SIZE + 10);
+            //     // For note-based effects, highlight the area around the note
+            //     g2d.setColor(effectColor);
+            //     g2d.fillOval(laneX + laneWidth/2 - NOTE_SIZE - 5, effectY - NOTE_SIZE/2 - 5, 
+            //                NOTE_SIZE + 10, NOTE_SIZE + 10);
                 
-                // Draw effect text
-                g2d.setColor(Color.WHITE);
-                g2d.setFont(new Font("Arial", Font.BOLD, 16));
+            //     // Draw effect text
+            //     g2d.setColor(Color.WHITE);
+            //     g2d.setFont(new Font("Arial", Font.BOLD, 16));
                 
-                // Center the text in the lane
-                FontMetrics fm = g2d.getFontMetrics();
-                int textWidth = fm.stringWidth(effect.getText());
-                int textX = laneX + (laneWidth - textWidth) / 2;
-                g2d.drawString(effect.getText(), textX, effectY - NOTE_SIZE/2 - 10);
-            }
+            //     // Center the text in the lane
+            //     FontMetrics fm = g2d.getFontMetrics();
+            //     int textWidth = fm.stringWidth(effect.getText());
+            //     int textX = laneX + (laneWidth - textWidth) / 2;
+            //     g2d.drawString(effect.getText(), textX, effectY - NOTE_SIZE/2 - 10);
+            // }
         }
         
-        // Draw score and combo
+        // Draw score
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Arial", Font.BOLD, 24));
         g2d.drawString("Score: " + score, 20, 30);
-        
-        if (combo > 1) {
-            g2d.setFont(new Font("Arial", Font.BOLD, 20));
-            g2d.drawString("Combo: " + combo + "x", 20, 60);
-        }
+
+        // Draw max combo
+        g2d.setFont(new Font("Arial", Font.BOLD, 20));
+        g2d.drawString("Max Combo: " + gameState.getMaxCombo(), 20, 60);
         
         // Draw rating counts
         if (gameState != null) {
@@ -536,8 +636,23 @@ public class GamePanel extends JPanel {
         g2d.setFont(new Font("Arial", Font.BOLD, 16));
         String[] keyHints = {"D", "F", "J", "K"};
         for (int i = 0; i < NUM_LANES; i++) {
+            // int laneX = i * laneWidth;
+            // g2d.drawString(keyHints[i], laneX + laneWidth/2 - 5, height - 20);
+            
             int laneX = i * laneWidth;
-            g2d.drawString(keyHints[i], laneX + laneWidth/2 - 5, height - 20);
+            g2d.setColor(Color.WHITE);
+            int keyX = laneX + laneWidth/2 - 5;
+            int keyY = height - 20;
+            
+            // Draw key hint background
+            g2d.setColor(new Color(0, 0, 0, 150));
+            int keyBgSize = 30;
+            g2d.fillRoundRect(keyX - keyBgSize/4, keyY - 15, keyBgSize, keyBgSize, 5, 5);
+            
+            // Draw key hint text
+            g2d.setColor(Color.WHITE);
+            g2d.drawString(keyHints[i], keyX, keyY);
+        
         }
     }
 
