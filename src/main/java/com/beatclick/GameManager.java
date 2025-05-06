@@ -45,8 +45,8 @@ public class GameManager {
         // Set the song ID in the game state
         this.gameState.setSongId(songId);
         
-        // Set the game manager reference in game state
-        this.gameState.setGameManager(this);
+        // // Set the game manager reference in game state
+        // this.gameState.setGameManager(this);
 
         // Set up game state
         gamePanel.setGameState(gameState);
@@ -165,11 +165,12 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
         gameState.incrementScore(rating);
         
         // Calculate actual Y position of the note
-        int height = gamePanel.getHeight();
-        int noteY = (int)(note.getYPosition() * height);
+        // int height = gamePanel.getHeight();
+        // int noteY = (int)(note.getYPosition() * height);
         
         // Show visual effect based on rating at the note's position
-        gamePanel.showHitEffect(laneIndex, rating, noteY);
+        // gamePanel.showHitEffect(laneIndex, rating, noteY);
+        gamePanel.showHitEffect(laneIndex, rating);
         
         // Remove the note from rendering
         gamePanel.removeNote(note);
