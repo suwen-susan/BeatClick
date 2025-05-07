@@ -71,14 +71,6 @@ public class GameState {
         this.processedNotes = new CopyOnWriteArrayList<>();
     }
     
-    // /**
-    //  * Sets the reference to the game manager
-    //  * @param gameManager The game manager
-    //  */
-    // public void setGameManager(GameManager gameManager) {
-    //     this.gameManager = gameManager;
-    // }
-    
     /**
      * Sets the song ID for the current game
      * @param songId The song ID
@@ -134,6 +126,11 @@ public class GameState {
         // Increase combo for non-miss hits
         if (rating != Rating.MISS) {
             combo++;
+
+            if (combo > 0 && combo % 5 == 0 && misses > 0) {
+                misses--; // Reduce misses for every 5 hits
+            }
+
             if (combo > maxCombo) {
                 maxCombo = combo;
             }
@@ -283,15 +280,6 @@ public class GameState {
                 missedNotes.add(note);
                 incrementMisses();
                 
-                // // Notify GameManager about the missed note for visual effects
-                // if (gameManager != null) {
-                //     gameManager.noteMissed(note);
-                // }
-                
-                // // Check for game over
-                // if (misses >= maxMisses && gameManager != null) {
-                //     gameManager.gameOver();
-                // }
             }
         }
         

@@ -153,6 +153,9 @@ public class GameManager {
 public boolean processNoteClick(int laneIndex, long clickTime) {
     if (!gameRunning || gameState.isPaused()) return false;
     
+    // record misses before the click
+    int missesBefore = gameState.getMisses();
+
     // Attempt to hit a note and get the rating
     GameState.HitResult hitResult = gameState.hitNote(laneIndex, clickTime);
     
@@ -163,10 +166,12 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
         
         // Apply the rating and update score
         gameState.incrementScore(rating);
-        
-        // Calculate actual Y position of the note
-        // int height = gamePanel.getHeight();
-        // int noteY = (int)(note.getYPosition() * height);
+
+        // chek if health is recovered
+        if (gameState.getMisses() < missesBefore) {
+            // show health recovery effect
+            gamePanel.showHealthRecoveryEffect();
+        }
         
         // Show visual effect based on rating at the note's position
         // gamePanel.showHitEffect(laneIndex, rating, noteY);
