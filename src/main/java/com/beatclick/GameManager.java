@@ -45,8 +45,8 @@ public class GameManager {
         // Set the song ID in the game state
         this.gameState.setSongId(songId);
         
-        // // Set the game manager reference in game state
-        // this.gameState.setGameManager(this);
+        // Set the game manager reference in game state
+        this.gameState.setGameManager(this);
 
         // Set up game state
         gamePanel.setGameState(gameState);

@@ -9,7 +9,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Manages score, notes, and game progression
  */
 public class GameState {
-    
+    private GameManager gameManager;
+
+    // set GameManager for callbacks
+    public void setGameManager(GameManager gameManager) {
+        this.gameManager = gameManager;
+    }
+
     /**
      * Rating - Represents the quality of a note hit
      */
@@ -279,6 +285,10 @@ public class GameState {
             if (currentTime > note.getHitTime() + HIT_WINDOW_MS) {
                 missedNotes.add(note);
                 incrementMisses();
+
+                if (gameManager != null) {
+                    gameManager.noteMissed(note);
+                }
                 
             }
         }
