@@ -1,6 +1,7 @@
 package com.beatclick;
 
 import javax.swing.*;
+import java.awt.*;
 import java.util.concurrent.*;
 
 /**
@@ -255,9 +256,9 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
             int poor = gameState.getPoorCount();
             int miss = gameState.getMissCount();
             String songId = gameState.getSongId();
+            int highScore = DatabaseManager.getHighScoreFromDetailedTable(songId);
             String endTime = java.time.Instant.now().toString();
-
-
+            ScoreRecord oldBest = DatabaseManager.getHighScoreRecord(songId);       // get the historical highest record
             DatabaseManager.saveDetailedScore(
                     playerName,
                     songId,
@@ -278,9 +279,63 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
                 message += "\n\nNew High Score!";
                 // DatabaseManager.saveScore(gameState.getSongId(), score);
             }
+            // texture notation
+            // JOptionPane.showMessageDialog(parentWindow, message, "Game Over", JOptionPane.INFORMATION_MESSAGE);
 
-            JOptionPane.showMessageDialog(parentWindow, message, "Game Over", JOptionPane.INFORMATION_MESSAGE);
-            
+            // show chart
+            JPanel chartContainer = new JPanel(new BorderLayout());
+            JPanel currentChart = ChartUtils.createRatingPieChart(excellent, good, poor, miss);
+            chartContainer.add(currentChart, BorderLayout.CENTER);
+
+            JButton toggleButton = new JButton("Switch to Score Chart");
+            toggleButton.addActionListener(e -> {
+                chartContainer.removeAll();
+                if (toggleButton.getText().contains("Score")) {
+                    boolean isNewRecord = score > oldBest.score;
+                    String currentLabel;
+                    String bestLabel;
+                    String chartTitle;
+                    if (isNewRecord) {
+                        currentLabel = "Top Score: You (" + score + " pts)";
+                        bestLabel = "Previous Top: " + oldBest.username + " (" + oldBest.score + " pts)";
+                        chartTitle = currentLabel + " vs " + bestLabel;
+                        currentLabel = "Top Score: You";
+                        bestLabel = "Previous Top: " + oldBest.username;
+                    } else {
+                        currentLabel = "You (" + score + " pts)";
+                        bestLabel = "Top Score: " + oldBest.username + " (" + oldBest.score + " pts)";
+                        chartTitle = currentLabel + " vs " + bestLabel;
+                        currentLabel = "You";
+                        bestLabel = "Top Score: " + oldBest.username;
+                    }
+                    JPanel chart = ChartUtils.createRatingComparisonBarChart(
+                            excellent, good, poor, miss,
+                            oldBest, currentLabel, bestLabel, chartTitle,
+                            new Dimension(500, 300)
+                    );
+                    chartContainer.add(chart, BorderLayout.CENTER);
+                    toggleButton.setText("Switch to Rating Pie Chart");
+                } else {
+                    JPanel pieChart = ChartUtils.createRatingPieChart(excellent, good, poor, miss);
+                    chartContainer.add(pieChart, BorderLayout.CENTER);
+                    toggleButton.setText("Switch to Score Chart");
+                }
+
+                chartContainer.revalidate();
+                chartContainer.repaint();
+            });
+
+            JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            controlPanel.add(toggleButton);
+
+            JPanel wrapper = new JPanel(new BorderLayout());
+            wrapper.add(chartContainer, BorderLayout.CENTER);
+            wrapper.add(controlPanel, BorderLayout.SOUTH);
+
+            JOptionPane.showMessageDialog(parentWindow, wrapper, "Your Performance", JOptionPane.PLAIN_MESSAGE);
+
+
+
             // Return to menu
             mainApp.returnToMenu();
         });

@@ -283,5 +283,42 @@ public class DatabaseManager {
         return 0;
     }
 
+    /**
+     * getHighScoreRecord: get the Highest Score's detail
+     * @param songId
+     * @return
+     */
+    public static ScoreRecord getHighScoreRecord(String songId) {
+        initDatabase();
+
+        String sql = "SELECT username, score, end_time, excellent_count, good_count, poor_count, miss_count " +
+                "FROM " + DETAIL_RECORD + " " +
+                "WHERE song_id = ? " +
+                "ORDER BY score DESC LIMIT 1";
+
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, songId);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return new ScoreRecord(
+                        songId,
+                        rs.getString("username"),
+                        rs.getInt("score"),
+                        rs.getString("end_time"),
+                        rs.getInt("excellent_count"),
+                        rs.getInt("good_count"),
+                        rs.getInt("poor_count"),
+                        rs.getInt("miss_count")
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching high score record: " + e.getMessage());
+        }
+
+        return null;
+    }
+
 
 }
