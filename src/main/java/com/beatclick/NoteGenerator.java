@@ -2,9 +2,11 @@ package com.beatclick;
 
 import javax.sound.sampled.*;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +37,9 @@ public class NoteGenerator implements Runnable {
     private static final int MIN_BEAT_DISTANCE_MS = 250; // Minimum time between beats
     private static final int ANALYSIS_WINDOW_SIZE = 1024; // Size of analysis window
     
+    private float bpm = DEFAULT_BPM;
+
+
     /**
      * Inner class to store note timing data
      */
@@ -59,6 +64,7 @@ public class NoteGenerator implements Runnable {
         this.random = new Random();
         this.noteData = new ArrayList<>();
         this.isRunning = false;
+        this.bpm = DEFAULT_BPM;
         
         // Load note data from file or generate from audio
         loadNoteData();
@@ -193,18 +199,55 @@ public class NoteGenerator implements Runnable {
         
         try (BufferedReader reader = new BufferedReader(new FileReader(notesFilePath))) {
             String line;
+            boolean isFirstLine = true;
             while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+
+                if (isFirstLine && line.startsWith("#")) {
+                    isFirstLine = false;
+                    // Try to extract BPM from metadata
+                    if (line.contains("BPM:")) {
+                        try {
+                            int bpmStart = line.indexOf("BPM:") + 4;
+                            int bpmEnd = line.indexOf(";", bpmStart);
+                            if (bpmEnd == -1) bpmEnd = line.length();
+                            String bpmStr = line.substring(bpmStart, bpmEnd);
+                            this.bpm = Float.parseFloat(bpmStr);
+                            // this.beatMs = 60000f / this.bpm;
+                        } catch (Exception e) {
+                            System.err.println("Error parsing BPM metadata: " + e.getMessage());
+                            // Fall back to default BPM or detection
+                        }
+                    }
+                    continue;
+                }
                 // Parse each line in format: hitTime,laneIndex
                 String[] parts = line.split(",");
                 if (parts.length == 2) {
-                    long hitTime = Long.parseLong(parts[0].trim());
-                    int laneIndex = Integer.parseInt(parts[1].trim());
+                    try{
+                        long hitTime = Long.parseLong(parts[0].trim());
+                        int laneIndex = Integer.parseInt(parts[1].trim());
+                        
+                        // Validate lane index
+                        if (laneIndex >= 0 && laneIndex < NUM_LANES) {
+                            // Add to note data
+                            noteData.add(new NoteData(hitTime, laneIndex));
+                        }
+                    }catch (NumberFormatException e) {
+                        System.err.println("Error parsing note data line: " + line);
+                    }
                     
-                    // Add to note data
-                    noteData.add(new NoteData(hitTime, laneIndex));
                 }
             }
-            System.out.println("Loaded " + noteData.size() + " notes from file: " + notesFilePath);
+            if (!noteData.isEmpty()) {
+                // Sort by hit time
+                noteData.sort(Comparator.comparingLong(n -> n.hitTime));
+                
+                // Ensure reasonable spacing
+                ensureReasonableNoteSpacing();
+                
+                System.out.println("Loaded and optimized " + noteData.size() + " notes from file: " + notesFilePath);
+            }
         } catch (IOException e) {
             // File not found, try to generate from audio analysis
             System.out.println("Note data file not found, attempting to generate from audio analysis.");
@@ -257,6 +300,16 @@ public class NoteGenerator implements Runnable {
             // Generate notes through onset detection
             // generateNotesFromOnsets(audioStream, format, bpm);
             generateNotesByGrid(audioStream, format, bpm);
+
+
+            if (noteData.size() > 0) {
+                boolean saveSuccess = saveNotesToFile();
+                if (saveSuccess) {
+                    System.out.println("Successfully saved " + noteData.size() + " notes to file.");
+                } else {
+                    System.out.println("Failed to save notes to file.");
+                }
+            }
             
             return noteData.size() > 0;
             
@@ -269,6 +322,36 @@ public class NoteGenerator implements Runnable {
         } catch (Exception e) {
             System.err.println("Error generating notes from audio: " + e.getMessage());
             e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * Saves generated note data to a file for future use
+     * @return true if save was successful, false otherwise
+     */
+    private boolean saveNotesToFile() {
+        String notesFilePath = "assets/songs/" + songId + ".notes";
+        
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(notesFilePath))) {
+            // Sort notes by hit time before saving
+            List<NoteData> sortedNotes = new ArrayList<>(noteData);
+            sortedNotes.sort(Comparator.comparingLong(n -> n.hitTime));
+            
+            writer.write("# BPM:" + bpm + ";VERSION:1.0;TIMESTAMP:" + System.currentTimeMillis());
+            writer.newLine();
+
+            // Write each note data in format: hitTime,laneIndex
+            for (NoteData note : noteData) {
+                writer.write(note.hitTime + "," + note.laneIndex);
+                writer.newLine();
+            }
+            
+            System.out.println("Saved " + noteData.size() + " notes to file: " + notesFilePath);
+            return true;
+            
+        } catch (IOException e) {
+            System.err.println("Error saving notes to file: " + e.getMessage());
             return false;
         }
     }
@@ -365,6 +448,7 @@ public class NoteGenerator implements Runnable {
                 
                 System.out.println("DEBUG: Detected " + beatTimes.size() + " beats, average interval: " + avgIntervalMs + "ms, BPM: " + bpm);
                 
+                this.bpm = bpm;
                 return bpm;
             }
             
@@ -489,15 +573,15 @@ public class NoteGenerator implements Runnable {
 
         // Calculate buffer sizes based on BPM for analysis windows
         int samplesPerBeat = (int) (60.0f / bpm * sampleRate);
-        int analysisWindowSize = Math.min(samplesPerBeat / 4, ANALYSIS_WINDOW_SIZE);
+        int analysisWindowSize = Math.max(1, Math.min(samplesPerBeat / 4, ANALYSIS_WINDOW_SIZE));
 
         // --- 2. Compute grid parameters ---
         float beatMs = 60000f / bpm;           // ms per beat
-        int resolution = 4;                    // 4 subdivisions per beat
+        int resolution = 8;                    // 4 subdivisions per beat
         float gridMs = beatMs / resolution;    // ms per grid step
         // int totalMs = allBytes.length / frameSize * 1000 / (int)sampleRate;
         int totalMs = (int)audioLengthMs;
-        int totalSteps = totalMs / (int)gridMs;
+        int totalSteps = Math.max(1, totalMs / (int)gridMs);
 
         // --- 3. First pass: accumulate mean energy per band ---
         double[] sumEnergy = new double[NUM_LANES];
@@ -506,7 +590,16 @@ public class NoteGenerator implements Runnable {
             int startSample = (int)(startMs * sampleRate / 1000);
             int startByte = startSample * frameSize;
 
+            if (startByte >= allBytes.length) {
+                continue;
+            }
+
             int length = Math.min(analysisWindowSize * frameSize, allBytes.length - startByte);
+            
+            if (length <= 0) {
+                continue;
+            }
+
             double[] energies = calculateBandEnergies(allBytes, startByte, length, format);
             for (int lane = 0; lane < NUM_LANES; lane++) {
                 sumEnergy[lane] += energies[lane];
@@ -518,12 +611,22 @@ public class NoteGenerator implements Runnable {
         }
 
         // --- 4. Second pass: threshold check & note generation ---
-        final double thresholdFactor = 1.5;  // you can tweak this
+        final double thresholdFactor = 1.05;  // you can tweak this
         for (int i = 0; i < totalSteps; i++) {
             int startMs = (int)(i * gridMs);
             int startSample = (int)(startMs * sampleRate / 1000);
             int startByte = startSample * frameSize;
+
+            if (startByte >= allBytes.length) {
+                continue;
+            }
+
             int length = Math.min(analysisWindowSize * frameSize, allBytes.length - startByte);
+            
+            if (length <= 0) {
+                continue;
+            }
+           
             double[] energies = calculateBandEnergies(allBytes, startByte, length, format);
 
             for (int lane = 0; lane < NUM_LANES; lane++) {
@@ -534,9 +637,178 @@ public class NoteGenerator implements Runnable {
             }
         }
 
-        // --- 5. Sort by hit time to produce final sequence ---
+        // --- 5. 针对钢琴曲的音符分布优化 ---
+        balancePianoNoteDistribution();
+
+        // --- 6. Sort by hit time to produce final sequence ---
         noteData.sort(Comparator.comparingLong(n -> n.hitTime));
     }
+
+    /**
+     * 平衡钢琴音符分布，优化游戏体验
+     * - 避免某些通道音符过多或过少
+     * - 确保音符密度合理
+     */
+    private void balancePianoNoteDistribution() {
+        // 确保至少有一些音符
+        if (noteData.size() < 10) {
+            System.out.println("Too few notes detected, adding algorithmically generated notes.");
+            generateNotesAlgorithmically();
+            return;
+        }
+        
+        // 统计每个通道的音符数量
+        int[] laneCount = new int[NUM_LANES];
+        for (NoteData note : noteData) {
+            laneCount[note.laneIndex]++;
+        }
+        
+        // 计算平均每个通道应有的音符数
+        int avgNotesPerLane = noteData.size() / NUM_LANES;
+        
+        // 检查是否有通道的音符数量过少（少于平均值的30%）
+        for (int lane = 0; lane < NUM_LANES; lane++) {
+            if (laneCount[lane] < avgNotesPerLane * 0.3) {
+                System.out.println("Lane " + lane + " has too few notes (" + laneCount[lane] + 
+                                "), redistributing some notes from other lanes.");
+                
+                // 找出音符最多的通道
+                int maxLane = 0;
+                for (int i = 1; i < NUM_LANES; i++) {
+                    if (laneCount[i] > laneCount[maxLane]) {
+                        maxLane = i;
+                    }
+                }
+                
+                // 将一些音符从最多的通道移到最少的通道
+                if (laneCount[maxLane] > avgNotesPerLane * 1.3) {
+                    int notesToMove = (int)((laneCount[maxLane] - avgNotesPerLane) * 0.3);
+                    
+                    // 创建一个音符列表副本，按时间排序
+                    List<NoteData> sortedNotes = new ArrayList<>(noteData);
+                    sortedNotes.sort(Comparator.comparingLong(n -> n.hitTime));
+                    
+                    // 选择一些音符进行移动
+                    int moved = 0;
+                    for (NoteData note : sortedNotes) {
+                        if (note.laneIndex == maxLane && moved < notesToMove) {
+                            note.laneIndex = lane;
+                            moved++;
+                            laneCount[maxLane]--;
+                            laneCount[lane]++;
+                        }
+                    }
+                    
+                    System.out.println("Moved " + moved + " notes from lane " + maxLane + " to lane " + lane);
+                }
+            }
+        }
+        
+        // 确保音符之间的间距合理
+        ensureReasonableNoteSpacing();
+    }
+
+    /**
+     * 确保音符之间的间距合理，避免过于密集或稀疏的音符
+     */
+    private void ensureReasonableNoteSpacing() {
+        if (noteData.isEmpty()) return;
+        
+        // 按时间排序音符
+        List<NoteData> sortedNotes = new ArrayList<>(noteData);
+        sortedNotes.sort(Comparator.comparingLong(n -> n.hitTime));
+        
+        // 计算平均间距
+        long totalSpacing = 0;
+        for (int i = 1; i < sortedNotes.size(); i++) {
+            totalSpacing += sortedNotes.get(i).hitTime - sortedNotes.get(i-1).hitTime;
+        }
+        long averageSpacing = sortedNotes.size() > 1 ? totalSpacing / (sortedNotes.size() - 1) : 500;
+        
+        // 最小和最大可接受间距
+        // long minSpacing = averageSpacing / 3;
+        float beatMs = 60000f / bpm;
+        long minSpacing = Math.max((long)(beatMs / 2), 300);
+        long maxSpacing = averageSpacing * 3;
+        
+        System.out.println("Average note spacing: " + averageSpacing + "ms, min: " + minSpacing + "ms, max: " + maxSpacing + "ms");
+        
+        // 处理过于密集的音符（可能会移除一些）
+        List<NoteData> notesToRemove = new ArrayList<>();
+        for (int i = 1; i < sortedNotes.size(); i++) {
+            long spacing = sortedNotes.get(i).hitTime - sortedNotes.get(i-1).hitTime;
+            if (spacing < minSpacing) {
+                // 对于过于接近的音符，保留更可能是正确音符的那个（通常是强拍上的）
+                boolean firstOnBeat = isOnBeat(sortedNotes.get(i-1).hitTime);
+                boolean secondOnBeat = isOnBeat(sortedNotes.get(i).hitTime);
+                
+                if (secondOnBeat && !firstOnBeat) {
+                    notesToRemove.add(sortedNotes.get(i-1));
+                } else if (firstOnBeat && !secondOnBeat) {
+                    notesToRemove.add(sortedNotes.get(i));
+                } else {
+                    // 如果都在或都不在强拍上，保留能量可能更高的那个（这里简化为随机选择）
+                    if (Math.random() < 0.5) {
+                        notesToRemove.add(sortedNotes.get(i-1));
+                    } else {
+                        notesToRemove.add(sortedNotes.get(i));
+                    }
+                }
+            }
+        }
+        
+        // 移除过于密集的音符
+        if (!notesToRemove.isEmpty()) {
+            System.out.println("Removing " + notesToRemove.size() + " too closely spaced notes.");
+            noteData.removeAll(notesToRemove);
+            sortedNotes.removeAll(notesToRemove);
+        }
+        
+        // 处理过于稀疏的间隔（可能会添加一些音符）
+        Random random = new Random();
+        List<NoteData> notesToAdd = new ArrayList<>();
+        
+        for (int i = 1; i < sortedNotes.size(); i++) {
+            long spacing = sortedNotes.get(i).hitTime - sortedNotes.get(i-1).hitTime;
+            if (spacing > maxSpacing) {
+                // 在过大的间隔中添加1-2个音符
+                int notesToInsert = spacing > maxSpacing * 2 ? 2 : 1;
+                
+                for (int j = 0; j < notesToInsert; j++) {
+                    // 计算新音符的时间点
+                    long newTime = sortedNotes.get(i-1).hitTime + spacing * (j + 1) / (notesToInsert + 1);
+                    
+                    // 随机选择一个通道，但避免与相邻音符使用相同通道
+                    int prevLane = sortedNotes.get(i-1).laneIndex;
+                    int nextLane = sortedNotes.get(i).laneIndex;
+                    
+                    int newLane;
+                    do {
+                        newLane = random.nextInt(NUM_LANES);
+                    } while (newLane == prevLane || newLane == nextLane);
+                    
+                    notesToAdd.add(new NoteData(newTime, newLane));
+                }
+            }
+        }
+        
+        // 添加音符到空隙中
+        if (!notesToAdd.isEmpty()) {
+            System.out.println("Adding " + notesToAdd.size() + " notes to fill large gaps.");
+            noteData.addAll(notesToAdd);
+        }
+    }
+
+    /**
+     * 检查时间点是否位于拍子上
+     */
+    private boolean isOnBeat(long timeMs) {
+        float beatMs = 60000f / bpm;
+        return Math.abs(timeMs % (long)beatMs) < beatMs / 8;
+    }
+
+
+
 
     /**
      * Compute energy in 4 frequency bands (bass, low-mid, mid-high, treble)
@@ -549,6 +821,22 @@ public class NoteGenerator implements Runnable {
      * @return Array of length NUM_LANES with band energies.
      */
     private double[] calculateBandEnergies(byte[] allBytes, int offset, int length, AudioFormat format) {
+        // 防御性代码：检查参数
+        if (length <= 0) {
+            System.out.println("Warning: Attempted to calculate band energies with non-positive length: " + length);
+            // 返回空能量数组避免异常
+            return new double[NUM_LANES];
+        }
+        
+        if (offset < 0 || offset >= allBytes.length) {
+            System.out.println("Warning: Invalid offset for band energy calculation: " + offset);
+            return new double[NUM_LANES];
+        }
+        
+        // 确保不会越界
+        length = Math.min(length, allBytes.length - offset);
+        
+        
         int frameSize = format.getFrameSize();
         int bytesPerSample = format.getSampleSizeInBits() / 8;
         boolean bigEndian = format.isBigEndian();
@@ -590,11 +878,11 @@ public class NoteGenerator implements Runnable {
 
             // map freq to band index
             int lane;
-            if (freq < 250) {
+            if (freq < 150) {
                 lane = 0;
-            } else if (freq < 1000) {
+            } else if (freq < 500) {
                 lane = 1;
-            } else if (freq < 5000) {
+            } else if (freq < 1500) {
                 lane = 2;
             } else {
                 lane = 3;
@@ -611,4 +899,3 @@ public class NoteGenerator implements Runnable {
         isRunning = false;
     }
 }
-
