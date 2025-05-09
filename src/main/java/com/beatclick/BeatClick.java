@@ -7,7 +7,7 @@ import java.awt.*;
  * BeatClick - Main application class for the BeatClick rhythm game
  * A music-based timing game where players tap notes in sync with music
  * 
- * @authors Suwen Wang (sw6359), Yifei Xu (yx3590), Ruqing Liu (rl5256)
+ * @authors Suwen Wang (sw6359), Yifei Xu (yx3590), Ruqing Liu (rl5652)
  */
 public class BeatClick {
     
