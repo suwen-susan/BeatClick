@@ -19,11 +19,14 @@ public class GameManager {
     private NoteGenerator noteGenerator;
     private InputProcessor inputProcessor;
     private AnimationController animationController;
-    
+
     // Synchronization objects
     private final Object syncLock = new Object();
     private volatile boolean gameRunning = false;
-    
+
+    //User data
+    private String playerName;
+
     /**
      * Constructor
      * @param parentWindow The main application window
@@ -185,23 +188,17 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
         gamePanel.updateCombo(gameState.getCombo());
         
         return true;
-    } else {
-        // No note was hit - check if there's a nearby note to avoid double-counting misses
-        boolean hasNearbyNote = gameState.hasNearbyNote(laneIndex, clickTime);
-        
-        if (!hasNearbyNote) {
-            // Only count as a separate miss if there's no nearby note
-            gamePanel.showMissEffect(laneIndex);
-            gameState.incrementScore(GameState.Rating.MISS);
-            gameState.incrementMisses(); // Add this line to deduct health
-            gamePanel.updateCombo(0); // Reset combo display
-            
-            // Check for game over after incrementing misses
-            if (gameState.getMisses() >= gameState.getMaxMisses()) {
-                gameOver();
-            }
+    }  else {
+        // Always treat as miss — don't skip based on nearby notes
+        gamePanel.showMissEffect(laneIndex);
+        gameState.incrementScore(GameState.Rating.MISS);
+        gameState.incrementMisses();
+        gamePanel.updateCombo(0);
+
+        if (gameState.getMisses() >= gameState.getMaxMisses()) {
+            gameOver();
         }
-        
+
         return false;
     }
 }
@@ -257,17 +254,31 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
             int good = gameState.getGoodCount();
             int poor = gameState.getPoorCount();
             int miss = gameState.getMissCount();
-            
+            String songId = gameState.getSongId();
+            String endTime = java.time.Instant.now().toString();
+
+
+            DatabaseManager.saveDetailedScore(
+                    playerName,
+                    songId,
+                    endTime,
+                    score,
+                    miss,
+                    poor,
+                    good,
+                    excellent
+            );
+
             String message = String.format(
                 "Game Over!\n\nYour score: %d\n\nExcellent: %d\nGood: %d\nPoor: %d\nMiss: %d",
                 score, excellent, good, poor, miss
             );
-            
+
             if (DatabaseManager.isHighScore(gameState.getSongId(), score)) {
                 message += "\n\nNew High Score!";
-                DatabaseManager.saveScore(gameState.getSongId(), score);
+                // DatabaseManager.saveScore(gameState.getSongId(), score);
             }
-            
+
             JOptionPane.showMessageDialog(parentWindow, message, "Game Over", JOptionPane.INFORMATION_MESSAGE);
             
             // Return to menu
@@ -321,5 +332,10 @@ public boolean processNoteClick(int laneIndex, long clickTime) {
      */
     public InputProcessor getInputProcessor() {
         return inputProcessor;
+    }
+
+
+    public void setPlayerName(String name) {
+        this.playerName = name;
     }
 }

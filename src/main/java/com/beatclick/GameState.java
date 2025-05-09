@@ -24,12 +24,12 @@ public class GameState {
     }
     
     // Game configuration
-    private static final int DEFAULT_MAX_MISSES = 10;
-    private static final int HIT_WINDOW_MS = 150; // Timing window for note hits in milliseconds
+    private static final int DEFAULT_MAX_MISSES = 15;
+    private static final int HIT_WINDOW_MS = 250; // Timing window for note hits in milliseconds
     private static final int EXCELLENT_WINDOW_MS = 50; // Perfect timing
     private static final int GOOD_WINDOW_MS = 100; // Good timing
     // POOR is between GOOD_WINDOW_MS and HIT_WINDOW_MS
-    
+
     // Game state variables
     private String songId;
     private int score;
@@ -153,7 +153,7 @@ public class GameState {
     public void incrementMisses() {
         misses++;
         combo = 0; // Reset combo on miss
-        missCount++;
+        // missCount++;
     }
     
     /**
@@ -305,7 +305,7 @@ public class GameState {
      */
     public boolean hasNearbyNote(int laneIndex, long currentTime) {
         final long NEARBY_THRESHOLD_MS = 300; // Consider notes within 300ms "nearby"
-        
+
         for (Note note : activeNotes) {
             if (note.getLaneIndex() == laneIndex) {
                 long timeDifference = Math.abs(currentTime - note.getHitTime());
@@ -314,7 +314,7 @@ public class GameState {
                 }
             }
         }
-        
+
         return false;
     }
     
@@ -325,39 +325,38 @@ public class GameState {
      * @return A HitResult object containing the hit note and rating, or null if no hit
      */
     public HitResult hitNote(int laneIndex, long clickTime) {
-        Note hit = null;
-        Rating rating = Rating.MISS;
-        
-        // Find the closest note in the specified lane
+        Note closest = null;
+        long minDiff = Long.MAX_VALUE;
+
         for (Note note : activeNotes) {
             if (note.getLaneIndex() == laneIndex) {
-                long timeDifference = Math.abs(clickTime - note.getHitTime());
-                
-                if (timeDifference <= HIT_WINDOW_MS) {
-                    hit = note;
-                    
-                    // Determine rating based on timing accuracy
-                    if (timeDifference <= EXCELLENT_WINDOW_MS) {
-                        rating = Rating.EXCELLENT;
-                    } else if (timeDifference <= GOOD_WINDOW_MS) {
-                        rating = Rating.GOOD;
-                    } else {
-                        rating = Rating.POOR;
-                    }
-                    break;
+                long diff = Math.abs(clickTime - note.getHitTime());
+                if (diff <= HIT_WINDOW_MS && diff < minDiff) {
+                    closest = note;
+                    minDiff = diff;
                 }
             }
         }
-        
-        if (hit != null) {
-            // Remove hit note from active notes and add to processed notes
-            activeNotes.remove(hit);
-            processedNotes.add(hit);
-            return new HitResult(hit, rating);
+
+        if (closest != null) {
+            Rating rating;
+            if (minDiff <= EXCELLENT_WINDOW_MS) {
+                rating = Rating.EXCELLENT;
+            } else if (minDiff <= GOOD_WINDOW_MS) {
+                rating = Rating.GOOD;
+            } else {
+                rating = Rating.POOR;
+            }
+
+            activeNotes.remove(closest);
+            processedNotes.add(closest);
+
+            return new HitResult(closest, rating); // ✅ 注意这里必须加 new
         }
-        
+
         return null;
     }
+
     
     /**
      * Inner class to hold the result of a hit attempt

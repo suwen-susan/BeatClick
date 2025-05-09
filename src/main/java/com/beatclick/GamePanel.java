@@ -13,7 +13,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * GamePanel - Handles rendering of the game
  * Displays notes, animations, and game state
  */
-public class GamePanel extends JPanel {
+public class
+GamePanel extends JPanel {
     
     // Constants for rendering
     private static final int NUM_LANES = 4;
