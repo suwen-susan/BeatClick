@@ -202,6 +202,7 @@ public class NoteGenerator implements Runnable {
         try (BufferedReader reader = new BufferedReader(new FileReader(notesFilePath))) {
             String line;
             boolean isFirstLine = true;
+            noteData.clear(); // Clear any existing note data
             while ((line = reader.readLine()) != null) {
                 if (line.trim().isEmpty()) continue;
 
@@ -219,6 +220,7 @@ public class NoteGenerator implements Runnable {
                         } catch (Exception e) {
                             System.err.println("Error parsing BPM metadata: " + e.getMessage());
                             // Fall back to default BPM or detection
+                            this.bpm = DEFAULT_BPM;
                         }
                     }
                     continue;
@@ -344,12 +346,12 @@ public class NoteGenerator implements Runnable {
             writer.newLine();
 
             // Write each note data in format: hitTime,laneIndex
-            for (NoteData note : noteData) {
+            for (NoteData note : sortedNotes) {
                 writer.write(note.hitTime + "," + note.laneIndex);
                 writer.newLine();
             }
             
-            System.out.println("Saved " + noteData.size() + " notes to file: " + notesFilePath);
+            System.out.println("Saved " + sortedNotes.size() + " notes to file: " + notesFilePath);
             return true;
             
         } catch (IOException e) {
