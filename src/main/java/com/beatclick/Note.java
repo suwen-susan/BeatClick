@@ -71,24 +71,25 @@ public class Note {
      */
     public void updatePosition(long currentTime) {
         if (currentTime < spawnTime) {
-            // 未到生成时间，始终在顶端
+            // if the note hasn't spawned yet, set yPosition to 0.0
             yPosition = 0.0f;
-        } else {
-            // 1) 先算出从 spawnTime 到 hitTime 的“旅行时间”
+        } 
+        else {
+            // 1) calculate the travel time from spawn to hit
             float travelTime = hitTime - spawnTime;               // = NOTE_TRAVEL_TIME_MS
 
-            // 2) 根据目标线归一化位置，推算出整个从 spawn 到“屏幕底端”所需的总时长
-            //    这样 hitTime 恰好对应到 TARGET_POSITION，底端对应到 1.0
+            // 2) based on the target position, calculate the total time to reach the target position
+            //    so that at hitTime, the note is at the target position
             float totalTime = travelTime / TARGET_POSITION;
 
-            // 3) 计算当前经过时间
+            // 3) calculate the elapsed time since spawn
             float elapsed = currentTime - spawnTime;
 
-            // 4) 进度 = elapsed / totalTime，但不超过 1.0
+            // 4) progerss between 0.0 and 1.0
             float progress = elapsed / totalTime;
             if (progress > 1.0f) progress = 1.0f;
 
-            // 5) 最终 yPosition 就是 0→1 的进度
+            // 5) calculate the Y position based on progress
             yPosition = progress;
         }
     }

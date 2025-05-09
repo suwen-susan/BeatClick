@@ -9,7 +9,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Manages score, notes, and game progression
  */
 public class GameState {
-    
+    private GameManager gameManager;
+
+    // set GameManager for callbacks
+    public void setGameManager(GameManager gameManager) {
+        this.gameManager = gameManager;
+    }
+
     /**
      * Rating - Represents the quality of a note hit
      */
@@ -35,7 +41,7 @@ public class GameState {
     private long gameStartTime;
     
     // Reference to GameManager for callbacks
-    private GameManager gameManager;
+    // private GameManager gameManager;
     
     // Rating counters
     private int excellentCount;
@@ -69,14 +75,6 @@ public class GameState {
         this.activeNotes = new CopyOnWriteArrayList<>();
         this.upcomingNotes = new CopyOnWriteArrayList<>();
         this.processedNotes = new CopyOnWriteArrayList<>();
-    }
-    
-    /**
-     * Sets the reference to the game manager
-     * @param gameManager The game manager
-     */
-    public void setGameManager(GameManager gameManager) {
-        this.gameManager = gameManager;
     }
     
     /**
@@ -114,11 +112,11 @@ public class GameState {
         // Score based on rating
         switch (rating) {
             case EXCELLENT:
-                baseScore = 300;
+                baseScore = 200;
                 excellentCount++;
                 break;
             case GOOD:
-                baseScore = 200;
+                baseScore = 150;
                 goodCount++;
                 break;
             case POOR:
@@ -127,12 +125,18 @@ public class GameState {
                 break;
             case MISS:
                 missCount++;
+                combo = 0; // Reset combo on miss
                 return; // No score for miss
         }
         
         // Increase combo for non-miss hits
         if (rating != Rating.MISS) {
             combo++;
+
+            if (combo > 0 && combo % 5 == 0 && misses > 0) {
+                misses--; // Reduce misses for every 5 hits
+            }
+
             if (combo > maxCombo) {
                 maxCombo = combo;
             }
@@ -140,9 +144,7 @@ public class GameState {
             // Calculate score with combo multiplier
             int comboMultiplier = Math.min(combo / 10 + 1, 4); // Cap multiplier at 4x
             score += baseScore * comboMultiplier;
-        } else {
-            combo = 0; // Reset combo on miss
-        }
+        } 
     }
     
     /**
@@ -283,16 +285,11 @@ public class GameState {
             if (currentTime > note.getHitTime() + HIT_WINDOW_MS) {
                 missedNotes.add(note);
                 incrementMisses();
-                
-                // Notify GameManager about the missed note for visual effects
+
                 if (gameManager != null) {
                     gameManager.noteMissed(note);
                 }
                 
-                // Check for game over
-                if (misses >= maxMisses && gameManager != null) {
-                    gameManager.gameOver();
-                }
             }
         }
         
