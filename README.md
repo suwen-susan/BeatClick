@@ -79,12 +79,12 @@ or
 gradle run
 ```
 
+## Function
 ### Adding Custom Songs
-BeatClick allows players to easily add their own songs and note patterns:
-   Click the "+" button and import the .wav file. The system will generate notes for you. The system is fully dynamic —— no need to recompile or edit Java files to add songs.
+BeatClick makes it easy for players to add their own songs and note patterns. Simply click the "+" button and import a .wav file — the system will automatically generate the notes for you. The process is fully dynamic, so there's no need to recompile or modify any Java files.
 
 ### Mode and difficulty level choice
-You can choose normal mode with easy, medium and hard levels. For practice mode, the score won't be saved.
+You can choose from three difficulty levels — Easy, Medium, and Hard — in Normal Mode. There's also a Practice Mode, where you can play freely without affecting your score.
 
 ## Controls
 
