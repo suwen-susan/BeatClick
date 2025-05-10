@@ -80,6 +80,9 @@ gradle run
 BeatClick allows players to easily add their own songs and note patterns:
    Click the "+" button and import the .wav file. The system will generate notes for you. The system is fully dynamic —— no need to recompile or edit Java files to add songs.
 
+### Mode and difficulty level choice
+You can choose normal mode with easy, medium and hard levels. For practice mode, the score won't be saved.
+
 ## Controls
 
 - **D, F, J, K**: Hit notes in lanes 1, 2, 3, and 4 respectively
@@ -103,5 +106,4 @@ BeatClick allows players to easily add their own songs and note patterns:
 
 - Online leaderboards using a REST API
 - More visual effects and themes
-- Custom note pattern editor
 - Support for various audio formats beyond WAV
