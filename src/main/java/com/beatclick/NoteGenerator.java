@@ -179,7 +179,7 @@ public class NoteGenerator implements Runnable {
                 }
                 
                 // Add the note to the game
-                if (isRunning && gameManager.isGameRunning()) {
+                if (isRunning && gameManager.isGameRunning() && !gameManager.getGameState().isPaused()) {
                     // System.out.println("DEBUG: Adding note at lane " + laneIndex + ", spawnTime=" + spawnTime + ", hitTime=" + hitTime);
                     gameManager.addNote(laneIndex, spawnTime, hitTime);
                 }

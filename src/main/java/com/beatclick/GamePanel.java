@@ -1,6 +1,9 @@
 package com.beatclick;
 
 import javax.swing.*;
+
+// import org.w3c.dom.events.MouseEvent;
+
 import java.awt.*;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseListener;
@@ -8,6 +11,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 
 /**
  * GamePanel - Handles rendering of the game
@@ -46,6 +52,19 @@ GamePanel extends JPanel {
     private int score = 0;
     private int combo = 0;
     private GameState gameState;
+
+    // Pause button properties
+    private Rectangle pauseButtonRect; // Pause button rectangle for hit detection
+    private boolean isPauseButtonHovered = false; // Track if mouse is hovering over pause button
+
+
+    /**
+     * Gets the current game state
+     * @return The current game state
+     */
+    public GameState getGameState() {
+        return this.gameState;
+    }
 
     /**
      * Inner class for visual effects (hit animations, etc.)
@@ -115,6 +134,168 @@ GamePanel extends JPanel {
         setBackground(BACKGROUND_COLOR);
         setFocusable(true);
         requestFocusInWindow();
+
+        // Add mouse listener for pause button
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (pauseButtonRect != null && pauseButtonRect.contains(e.getPoint())) {
+                    handlePauseButtonClick();
+                }
+            }
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                setCursor(Cursor.getDefaultCursor());
+            }
+        });
+        
+        // Add mouse motion listener for hover effects
+        addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                boolean wasHovered = isPauseButtonHovered;
+                isPauseButtonHovered = pauseButtonRect != null && pauseButtonRect.contains(e.getPoint());
+                
+                // Only repaint if hover state changed
+                if (wasHovered != isPauseButtonHovered) {
+                    repaint(pauseButtonRect.x, pauseButtonRect.y, 
+                        pauseButtonRect.width, pauseButtonRect.height);
+                }
+                
+                // Change cursor when hovering over button
+                if (isPauseButtonHovered) {
+                    setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                } else {
+                    setCursor(Cursor.getDefaultCursor());
+                }
+            }
+        });
+    }
+
+    /**
+     * Handles pause button click event
+     * Shows pause dialog with options to resume or return to main menu
+     */
+    private void handlePauseButtonClick() {
+        if (gameState != null) {
+            if (!gameState.isPaused()) {
+                // Pause the game
+                gameState.getGameManager().pauseGame();
+                
+                // Show pause dialog
+                JPanel pausePanel = createPausePanel();
+                // int option = JOptionPane.showOptionDialog(
+                //         this,
+                //         pausePanel,
+                //         "Game Paused",
+                //         JOptionPane.DEFAULT_OPTION,
+                //         JOptionPane.PLAIN_MESSAGE,
+                //         null,
+                //         new Object[]{},
+                //         null
+                // );
+
+                // Create a dialog that will stay on top
+                JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(this), "Game Paused", true);
+                dialog.setContentPane(pausePanel);
+                dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+                dialog.setSize(300, 150);
+                dialog.setLocationRelativeTo(this);
+                dialog.setAlwaysOnTop(true);
+                
+                // Add WindowListener to handle when user clicks the X button
+                dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+                    @Override
+                    public void windowClosing(java.awt.event.WindowEvent e) {
+                        // Resume game when dialog is closed with X
+                        gameState.getGameManager().resumeGame();
+                    }
+                });
+                
+                // Show the dialog
+                dialog.setVisible(true);
+            }
+        }
+    }
+
+     /**
+     * Creates the pause menu panel with resume and main menu buttons
+     * @return Panel containing pause menu options
+     */
+    private JPanel createPausePanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new GridLayout(2, 1, 0, 10));
+        panel.setBackground(new Color(40, 40, 50));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JButton resumeButton = createPauseMenuButton("Resume Game");
+        JButton mainMenuButton = createPauseMenuButton("Return to Main Menu");
+        
+        resumeButton.addActionListener(e -> {
+            // Find and close the dialog
+            Component component = resumeButton;
+            while (component != null && !(component instanceof JDialog)) {
+                component = component.getParent();
+            }
+            
+            if (component != null) {
+                ((JDialog) component).dispose();
+            }
+            
+            // Resume game
+            gameState.getGameManager().resumeGame();
+        });
+        
+        mainMenuButton.addActionListener(e -> {
+            // Find and close the dialog
+            Component component = mainMenuButton;
+            while (component != null && !(component instanceof JDialog)) {
+                component = component.getParent();
+            }
+            
+            if (component != null) {
+                ((JDialog) component).dispose();
+            }
+            
+            // Return to main menu
+            gameState.getGameManager().getMainApp().returnToMenu();
+        });
+        
+        panel.add(resumeButton);
+        panel.add(mainMenuButton);
+        
+        return panel;
+    }
+
+    /**
+     * Creates a styled button for the pause menu
+     * @param text The button text
+     * @return Styled JButton
+     */
+    private JButton createPauseMenuButton(String text) {
+        JButton button = new JButton(text);
+        button.setBackground(new Color(60, 60, 70));
+        button.setForeground(Color.BLACK);
+        button.setFocusPainted(false);
+        button.setFont(new Font("Arial", Font.BOLD, 14));
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(80, 80, 90), 1),
+                BorderFactory.createEmptyBorder(8, 15, 8, 15)
+        ));
+        
+        // Add hover effect
+        button.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                button.setBackground(new Color(80, 80, 90));
+            }
+            
+            public void mouseExited(MouseEvent e) {
+                button.setBackground(new Color(60, 60, 70));
+            }
+        });
+        
+        return button;
     }
     
     /**
@@ -122,19 +303,34 @@ GamePanel extends JPanel {
      * @param inputHandler The input handler
      */
     public void configureInputHandler(InputHandler inputHandler) {
+        // Store our custom mouse listeners before removing all
+        MouseListener[] mouseListeners = getMouseListeners();
+        
         // Remove existing listeners first
         for (KeyListener listener : getKeyListeners()) {
             removeKeyListener(listener);
         }
-        for (MouseListener listener : getMouseListeners()) {
-            removeMouseListener(listener);
+        for (MouseListener listener : mouseListeners) {
+            if (listener instanceof InputHandler) {
+                // Only remove InputHandler listeners, keep our pause button listener
+                removeMouseListener(listener);
+            }
         }
         
         // Add new listeners
         addKeyListener(inputHandler);
         addMouseListener(inputHandler);
     }
-    
+
+    /**
+     * Checks if a point is within the pause button area
+     * @param point The point to check
+     * @return true if the point is on the pause button, false otherwise
+     */
+    public boolean isPauseButtonClick(Point point) {
+        return pauseButtonRect != null && pauseButtonRect.contains(point);
+    }
+        
     /**
      * Adds a note to be rendered
      * @param note The note to add
@@ -156,6 +352,11 @@ GamePanel extends JPanel {
      * Updates all animations and effects
      */
     public void updateAnimations() {
+         // If game is paused, don't update anything
+        if (gameState != null && gameState.isPaused()) {
+            return;
+        }
+
         // Move the notes from upcoming to active
         gameState.updateNotes();
         
@@ -494,6 +695,42 @@ GamePanel extends JPanel {
             // draw health bar border
             g2d.setColor(Color.WHITE);
             g2d.drawRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
+
+            // Draw pause button to the left of the health bar
+            int pauseButtonSize = 30;
+            int pauseButtonX = healthBarX - pauseButtonSize - 10; // 10px gap between button and health bar
+            int pauseButtonY = healthBarY + (healthBarHeight - pauseButtonSize) / 2; // Center vertically with health bar
+
+            // Store button rectangle for click detection
+            pauseButtonRect = new Rectangle(pauseButtonX, pauseButtonY, pauseButtonSize, pauseButtonSize);
+
+            // Draw button background (darker when hovered)
+            g2d.setColor(isPauseButtonHovered ? new Color(70, 70, 80, 220) : new Color(50, 50, 60, 200));
+            g2d.fillRoundRect(pauseButtonX, pauseButtonY, pauseButtonSize, pauseButtonSize, 8, 8);
+
+            // Draw button border
+            g2d.setColor(Color.WHITE);
+            g2d.drawRoundRect(pauseButtonX, pauseButtonY, pauseButtonSize, pauseButtonSize, 8, 8);
+
+            // Draw pause icon (two vertical lines)
+            g2d.setStroke(new BasicStroke(2.0f));
+            int iconWidth = 4;
+            int iconHeight = 14;
+            int iconPadding = 6;
+            int iconY = pauseButtonY + (pauseButtonSize - iconHeight) / 2;
+
+            g2d.fillRect(
+                pauseButtonX + (pauseButtonSize / 2) - iconPadding - iconWidth, 
+                iconY, 
+                iconWidth, 
+                iconHeight
+            );
+            g2d.fillRect(
+                pauseButtonX + (pauseButtonSize / 2) + iconPadding, 
+                iconY, 
+                iconWidth, 
+                iconHeight
+            );
         }
         
         // Draw lane key hints at the bottom

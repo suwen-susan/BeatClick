@@ -105,7 +105,14 @@ public class MusicPlayer implements Runnable {
      */
     public void resume() {
         if (audioClip != null && isPaused) {
-            audioClip.setMicrosecondPosition(pausePosition);
+            long gameTimeMs = gameManager.getGameState().getCurrentGameTime();
+            long newPositionMicros = gameTimeMs * 1000;
+            
+            if (newPositionMicros > audioClip.getMicrosecondLength()) {
+                newPositionMicros = 0;
+            }
+            
+            audioClip.setMicrosecondPosition(newPositionMicros);
             audioClip.start();
             isPaused = false;
         }

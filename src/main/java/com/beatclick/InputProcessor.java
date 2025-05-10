@@ -49,6 +49,11 @@ public class InputProcessor implements Runnable {
      * @param laneIndex The lane index where the input occurred
      */
     public void addInputEvent(int laneIndex) {
+        // Don't add input events when game is paused
+        if (gameManager.getGameState().isPaused()) {
+            return;
+        }
+        
         long currentTime = gameManager.getGameState().getCurrentGameTime();
         inputQueue.add(new InputEvent(laneIndex, currentTime));
     }

@@ -33,6 +33,13 @@ public class AnimationController implements Runnable {
         
         try {
             while (isRunning) {
+                // Check if game is paused - if so, wait and don't update animations
+                if (gamePanel.getGameState() != null && gamePanel.getGameState().isPaused()) {
+                    Thread.sleep(100); // Small sleep to prevent CPU hogging while paused
+                    lastUpdateTime = System.currentTimeMillis(); // Reset the timer when unpaused
+                    continue; // Skip this update cycle
+                }
+
                 long currentTime = System.currentTimeMillis();
                 long elapsedTime = currentTime - lastUpdateTime;
                 

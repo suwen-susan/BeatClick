@@ -63,6 +63,11 @@ public class InputHandler implements KeyListener, MouseListener {
     @Override
     public void mousePressed(MouseEvent e) {
         GamePanel gamePanel = gameManager.getGamePanel();
+
+         // Check if click is on pause button - if so, ignore for lane detection
+        if (gamePanel.isPauseButtonClick(e.getPoint())) {
+            return; // Don't process as lane input if it's a pause button click
+        }
         
         // Calculate which lane was clicked based on x-coordinate
         int panelWidth = gamePanel.getWidth();
