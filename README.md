@@ -66,11 +66,13 @@ BeatClick allows players to easily add their own songs and note patterns:
 ### Building the Project
 
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/beatclick.git
+cd beatclick
+
 # Build with Gradle
 ./gradle build
-```
 or
-```bash
 gradle build
 ```
 
