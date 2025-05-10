@@ -641,7 +641,7 @@ public class NoteGenerator implements Runnable {
             }
         }
 
-        // --- 5. 针对钢琴曲的音符分布优化 ---
+        // --- 5. optimize global note density ---
         optimizeGlobalNoteDensity();
 
         // --- 6. Sort by hit time to produce final sequence ---
@@ -651,32 +651,32 @@ public class NoteGenerator implements Runnable {
   
 
     /**
-     * 平衡的全局音符密度控制算法
-     * 在保持游戏可玩性的同时，适当增加音符数量
+     * Optimizes the global note density by applying a series of filters and adjustments.
+     * This includes applying a global minimum spacing, density control using a sliding window,
      */
     private void optimizeGlobalNoteDensity() {
         if (noteData.isEmpty()) return;
         long beatMs = (long)(60000f / bpm); // 每拍的毫秒数
         
-        // 按时间排序音符
+        // ========== Step 0: Sort notes by hit time ==========
         List<NoteData> sortedNotes = new ArrayList<>(noteData);
         sortedNotes.sort(Comparator.comparingLong(n -> n.hitTime));
         
         System.out.println("Starting global density optimization with " + sortedNotes.size() + " notes");
         
-        // ========== 第1步: 应用适当的全局最小间距 ==========
+        // ========== Step 1: Apply global minimum spacing ==========
         
-        // 降低最小间距要求，允许更密集的音符
-        long absoluteMinSpacing = (long)(beatMs * 0.5); // 调整为半拍 (从0.75拍减少到0.5拍)
+        // Set a global minimum spacing of 0.5 beats (500ms)
+        long absoluteMinSpacing = (long)(beatMs * 0.5); 
         
         List<NoteData> spacedNotes = new ArrayList<>();
         
-        // 保留第一个音符
+        // keep the first note
         if (!sortedNotes.isEmpty()) {
             spacedNotes.add(sortedNotes.get(0));
         }
         
-        // 应用全局最小间距
+        // apply global minimum spacing
         for (int i = 1; i < sortedNotes.size(); i++) {
             NoteData currentNote = sortedNotes.get(i);
             NoteData lastAddedNote = spacedNotes.get(spacedNotes.size() - 1);
@@ -693,19 +693,19 @@ public class NoteGenerator implements Runnable {
         
         System.out.println("After global minimum spacing: " + spacedNotes.size() + " notes");
         
-        // ========== 第2步: 应用滑动窗口密度控制 ==========
+        // ========== Step 2: Density control using a sliding window ==========
         
-        // 调整窗口参数，允许更多音符
-        long windowSize = (long)(beatMs * 2); // 2拍的窗口
-        int maxNotesPerWindow = 3; // 增加到每个窗口最多3个音符 (从2个增加到3个)
+        // Apply a sliding window to control the density of notes
+        long windowSize = (long)(beatMs * 1); 
+        int maxNotesPerWindow = 3; 
         
         List<NoteData> densityControlledNotes = new ArrayList<>();
         
         for (NoteData note : spacedNotes) {
-            // 计算当前窗口（以当前音符为结束点，向前推windowSize时间）
+            // calculate the start of the window
             long windowStart = note.hitTime - windowSize;
             
-            // 计算窗口内已有的音符数
+            // calculate the number of notes in the window
             int notesInWindow = 0;
             for (NoteData addedNote : densityControlledNotes) {
                 if (addedNote.hitTime >= windowStart && addedNote.hitTime <= note.hitTime) {
@@ -713,7 +713,7 @@ public class NoteGenerator implements Runnable {
                 }
             }
             
-            // 如果窗口内音符数量未达到上限，则添加当前音符
+            // if the number of notes in the window is less than the max, add the note
             if (notesInWindow < maxNotesPerWindow) {
                 densityControlledNotes.add(note);
             } else {
@@ -724,21 +724,21 @@ public class NoteGenerator implements Runnable {
         
         System.out.println("After density window control: " + densityControlledNotes.size() + " notes");
         
-        // ========== 第3步: 确保连续音符不在同一通道上 ==========
+        // ========== Step 3: Filter same-lane notes ==========
         
         List<NoteData> finalNotes = new ArrayList<>();
         
-        // 保留第一个音符
+        // keep the first note (if any)
         if (!densityControlledNotes.isEmpty()) {
             finalNotes.add(densityControlledNotes.get(0));
         }
         
-        // 降低同通道的音符间距要求
+        // filter out same-lane notes that are too close together
         for (int i = 1; i < densityControlledNotes.size(); i++) {
             NoteData currentNote = densityControlledNotes.get(i);
             NoteData previousNote = finalNotes.get(finalNotes.size() - 1);
             
-            // 减小同通道的间距要求 (从1.5拍减少到1拍)
+            // calculate the time difference between current and previous note
             if (currentNote.laneIndex == previousNote.laneIndex && 
                 (currentNote.hitTime - previousNote.hitTime) < beatMs) {
                 System.out.println("Removing note at time " + currentNote.hitTime + 
@@ -750,22 +750,21 @@ public class NoteGenerator implements Runnable {
         
         System.out.println("After same-lane filtering: " + finalNotes.size() + " notes");
         
-        // ========== 第4步: 智能轨道重分配 ==========
+        // ========== Step 4: Reassign lanes to avoid consecutive notes on the same lane ==========
         
-        // 重分配轨道，使连续的音符分布在不同轨道上
+        // reassign lanes to avoid consecutive notes on the same lane
         for (int i = 1; i < finalNotes.size(); i++) {
             NoteData currentNote = finalNotes.get(i);
             NoteData previousNote = finalNotes.get(i - 1);
             
-            // 计算与前一个音符的时间差
+            // calculate the time difference between current and previous note
             long timeDiff = currentNote.hitTime - previousNote.hitTime;
             
-            // 降低时间阈值
-            if (timeDiff < beatMs) { // 从1.5拍减少到1拍
-                // 如果两个音符在同一轨道，则移动当前音符到不同轨道
+            if (timeDiff < beatMs) { 
+                // If the current note is on the same lane as the previous note, change its lane
                 if (currentNote.laneIndex == previousNote.laneIndex) {
-                    // 找一个不同的轨道
-                    int newLane = (previousNote.laneIndex + 2) % NUM_LANES; // 跳过相邻轨道
+                    // Find a new lane that is not the same as the previous note's lane
+                    int newLane = (previousNote.laneIndex + 2) % NUM_LANES; // skip neighboring lane
                     System.out.println("Moving note at time " + currentNote.hitTime + 
                                     " from lane " + currentNote.laneIndex + " to lane " + newLane);
                     currentNote.laneIndex = newLane;
@@ -773,61 +772,60 @@ public class NoteGenerator implements Runnable {
             }
         }
         
-        // ========== 第5步: 修改三连音检测 - 仅检测非常紧密的三连音 ==========
+        // ========== Step 5: Filter out very tight triple notes ==========
         
         List<NoteData> tripleFilteredNotes = new ArrayList<>();
         
-        // 保留前两个音符（如果有）
+        // keep the first two notes (if any)
         if (finalNotes.size() >= 1) tripleFilteredNotes.add(finalNotes.get(0));
         if (finalNotes.size() >= 2) tripleFilteredNotes.add(finalNotes.get(1));
         
-        // 检查连续的三个音符，使用更严格的标准定义"三连音"
+        // filter out very tight triple notes
         for (int i = 2; i < finalNotes.size(); i++) {
             NoteData note1 = tripleFilteredNotes.get(tripleFilteredNotes.size() - 2);
             NoteData note2 = tripleFilteredNotes.get(tripleFilteredNotes.size() - 1);
             NoteData note3 = finalNotes.get(i);
             
-            // 计算连续三个音符的两个间距
+            // calculate the spacing between the notes
             long spacing1 = note2.hitTime - note1.hitTime;
             long spacing2 = note3.hitTime - note2.hitTime;
             
-            // 使用更严格的条件来定义"紧密的三连音"
-            if (spacing1 < beatMs * 0.4 && spacing2 < beatMs * 0.4) { // 只过滤非常紧密的三连音
-                // 移除中间的音符，打破这种模式
+            // check if the spacing is too tight
+            if (spacing1 < beatMs * 0.4 && spacing2 < beatMs * 0.4) { 
+                // remove the middle note (note2) to break the pattern
                 tripleFilteredNotes.remove(tripleFilteredNotes.size() - 1);
                 System.out.println("Breaking very tight triple note pattern by removing middle note at " + note2.hitTime);
                 
-                // 重新计算新的间距
+                // check if the third note (note3) is also too close to the first note (note1)
                 long newSpacing = note3.hitTime - note1.hitTime;
                 
-                // 只有当新间距足够大时才添加第三个音符
+                // add the third note (note3) only if it is not too close to the first note (note1)
                 if (newSpacing >= beatMs * 0.5) {
                     tripleFilteredNotes.add(note3);
                 } else {
                     System.out.println("Also skipping third note in triple pattern");
-                    // 继续检查下一个音符
                 }
             } else {
-                // 不是非常紧密的三连音模式，正常添加当前音符
+                // If the spacing is acceptable, add the note3 to the filtered list
                 tripleFilteredNotes.add(note3);
             }
         }
         
         System.out.println("After triple pattern filtering: " + tripleFilteredNotes.size() + " notes");
         
-        // ========== 第6步: 确保开始和结束的音符间距适中 ==========
+        // ========== Step 6: Normalize note times to start after a delay ==========
         
-        // 保证游戏开始有一段合理的准备时间
-        long gameStartDelay = 3000; // 3秒的准备时间
+        // Set a delay for the first note to appear after game start
+        long gameStartDelay = 3000; // 3 seconds for preparation
         
         if (!tripleFilteredNotes.isEmpty() && tripleFilteredNotes.get(0).hitTime < gameStartDelay) {
             tripleFilteredNotes.get(0).hitTime = gameStartDelay;
         }
         
-        // ========== 第7步: 主动填补间隙 - 更积极地添加音符 ==========
+        // ========== Step 7: Add filler notes to fill gaps ==========
         
-        // 减小认为是"过大"的间隙阈值
-        long maxSpacing = (long)(beatMs * 4); // 从6拍减小到4拍
+        // Set a maximum spacing for filler notes (4 beats)
+        long maxSpacing = (long)(beatMs * 4); 
         
         List<NoteData> finalNotesWithFiller = new ArrayList<>(tripleFilteredNotes);
         List<NoteData> notesToAdd = new ArrayList<>();
@@ -835,27 +833,27 @@ public class NoteGenerator implements Runnable {
         for (int i = 1; i < finalNotesWithFiller.size(); i++) {
             long spacing = finalNotesWithFiller.get(i).hitTime - finalNotesWithFiller.get(i-1).hitTime;
             
-            // 如果间距过大，添加1-2个音符
+            // If the spacing is larger than the maximum allowed, add filler notes
             if (spacing > maxSpacing) {
-                // 根据间隙大小确定添加的音符数量
+                // Calculate the number of filler notes to add
                 int fillerCount = spacing > maxSpacing * 1.5 ? 2 : 1;
                 
                 for (int j = 0; j < fillerCount; j++) {
-                    // 计算新音符的时间点
+                    // calculate the time for the new note
                     long newTime;
                     if (fillerCount == 1) {
-                        // 如果只添加一个音符，放在中间
+                        // If adding one note, place it in the middle of the gap
                         newTime = finalNotesWithFiller.get(i-1).hitTime + spacing / 2;
                     } else {
-                        // 如果添加两个音符，均匀分布
+                        // If adding two notes, place them evenly spaced in the gap
                         newTime = finalNotesWithFiller.get(i-1).hitTime + spacing * (j + 1) / (fillerCount + 1);
                     }
                     
-                    // 选择一个不同于相邻音符的通道
+                    // choose a lane for the new note
                     int prevLane = finalNotesWithFiller.get(i-1).laneIndex;
                     int nextLane = finalNotesWithFiller.get(i).laneIndex;
                     
-                    // 选择一个不同于两个相邻音符的通道
+                    // choose a new lane that is not the same as the previous or next note
                     int newLane = 0;
                     for (int lane = 0; lane < NUM_LANES; lane++) {
                         if (lane != prevLane && lane != nextLane) {
@@ -864,38 +862,37 @@ public class NoteGenerator implements Runnable {
                         }
                     }
                     
-                    // 将音符添加到新音符列表中
+                    //Add the new note to the list of notes to add
                     notesToAdd.add(new NoteData(newTime, newLane));
                     System.out.println("Adding filler note at time " + newTime + " in lane " + newLane);
                 }
             }
         }
         
-        // 添加填充音符
+        // add the filler notes to the final notes list
         finalNotesWithFiller.addAll(notesToAdd);
         finalNotesWithFiller.sort(Comparator.comparingLong(n -> n.hitTime));
         
         System.out.println("After adding filler notes: " + finalNotesWithFiller.size() + " notes");
         
-        // ========== 额外步骤: 添加节拍点音符 ==========
+        // ========== Extra Step: Add beat-based filler notes ==========
         
-        // 检查主节拍点上是否有音符，如果没有可以考虑添加
+        // create a list to hold beat-based filler notes
         List<NoteData> beatFillerNotes = new ArrayList<>();
         
-        // 获取最后一个音符的时间
+        // Get the song end time
         long songEndTime = finalNotesWithFiller.isEmpty() ? 0 : 
                         finalNotesWithFiller.get(finalNotesWithFiller.size() - 1).hitTime;
         
-        // 创建所有主拍位置的列表
+        // calculate the main beats based on the song length
         List<Long> mainBeats = new ArrayList<>();
         for (long time = gameStartDelay; time < songEndTime; time += beatMs) {
             mainBeats.add(time);
         }
         
-        // 用于确定是否已存在音符
+        // check if there are any main beats
         Set<Long> existingNoteTimes = new HashSet<>();
         for (NoteData note : finalNotesWithFiller) {
-            // 允许一定误差（30毫秒）
             for (long t = note.hitTime - 30; t <= note.hitTime + 30; t++) {
                 existingNoteTimes.add(t);
             }
@@ -903,9 +900,9 @@ public class NoteGenerator implements Runnable {
         
         Random random = new Random();
         
-        // 遍历所有主拍位置
+
         for (long beatTime : mainBeats) {
-            // 检查在这个主拍附近是否已有音符
+            // check if there are any existing notes within 100ms of the beat time
             boolean hasNearbyNote = false;
             for (long t = beatTime - 100; t <= beatTime + 100; t++) {
                 if (existingNoteTimes.contains(t)) {
@@ -914,31 +911,28 @@ public class NoteGenerator implements Runnable {
                 }
             }
             
-            // 只有在1)没有附近音符 2)随机条件满足 的情况下添加
-            if (!hasNearbyNote && random.nextInt(4) == 0) { // 只有25%的空拍会添加音符
-                // 为这个拍子选择一个随机通道
+            // if there are no nearby notes, add a beat-based filler note
+            if (!hasNearbyNote && random.nextInt(4) == 0) { // only add 25% of the time
                 int beatLane = random.nextInt(NUM_LANES);
                 
-                // 添加到填充音符列表
                 beatFillerNotes.add(new NoteData(beatTime, beatLane));
                 
-                // 更新已存在音符集合
                 for (long t = beatTime - 30; t <= beatTime + 30; t++) {
                     existingNoteTimes.add(t);
                 }
             }
         }
         
-        // 添加节拍填充音符
+
         if (!beatFillerNotes.isEmpty()) {
             System.out.println("Adding " + beatFillerNotes.size() + " beat-based filler notes");
             finalNotesWithFiller.addAll(beatFillerNotes);
             finalNotesWithFiller.sort(Comparator.comparingLong(n -> n.hitTime));
         }
         
-        // ========== 最后步骤: 更新原始音符集合 ==========
+        // ========== Last Step: Remove duplicates ==========
         
-        // 清空原始音符集合并添加优化后的音符
+        // remove duplicates from the final notes list
         noteData.clear();
         noteData.addAll(finalNotesWithFiller);
         
