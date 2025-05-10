@@ -78,12 +78,9 @@ gradle build
 
 ```bash
 ./gradle run
-```
 or
-```bash
 gradle run
 ```
-
 
 ### Adding Custom Songs
 
