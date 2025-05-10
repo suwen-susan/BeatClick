@@ -69,13 +69,21 @@ BeatClick allows players to easily add their own songs and note patterns:
 # Build with Gradle
 ./gradle build
 ```
+or
+```bash
+gradle build
+```
 
 ### Running the Game
 
 ```bash
-# Run with Gradle
 ./gradle run
 ```
+or
+```bash
+gradle run
+```
+
 
 ### Adding Custom Songs
 
