@@ -12,7 +12,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.awt.event.KeyEvent;
-import javax.swing.KeyStroke;
 /**
  * GamePanel - Handles rendering of the game
  * Displays notes, animations, and game state
@@ -316,9 +315,12 @@ private void handlePauseButtonClick() {
         JPanel appearancePanel = new JPanel(new GridLayout(2, 2, 10, 10));
         appearancePanel.setBackground(new Color(40, 40, 50));
         appearancePanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createLineBorder(new Color(80, 80, 90), 1),
-            "Appearance Settings"
-        ));
+            BorderFactory.createLineBorder(new Color(80, 80, 90), 1), 
+            "Appearance Settings", 
+            javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION,
+            javax.swing.border.TitledBorder.DEFAULT_POSITION,
+            null,
+            Color.WHITE));
         
         // Note design selector
         JLabel noteLabel = new JLabel("Note Style:");

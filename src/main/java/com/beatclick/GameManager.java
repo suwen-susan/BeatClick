@@ -46,6 +46,14 @@ public class GameManager {
         createThreadPool();
     }
     
+    public void setGameState(GameState gameState) {
+        this.gameState = gameState;
+        
+        if (gameState != null) {
+            gameState.setGameManager(this);
+        }
+    }
+
     /**
      * Creates a new thread pool
      */
