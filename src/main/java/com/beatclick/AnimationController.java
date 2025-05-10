@@ -12,7 +12,7 @@ public class AnimationController implements Runnable {
     private static final long FRAME_TIME = 1000 / FRAME_RATE; // Milliseconds per frame
     
     private final GamePanel gamePanel;
-    private boolean isRunning;
+    private volatile boolean isRunning;
     
     /**
      * Constructor
@@ -33,9 +33,17 @@ public class AnimationController implements Runnable {
         
         try {
             while (isRunning) {
+                GameState gameState = gamePanel.getGameState();
+                
                 // Check if game is paused - if so, wait and don't update animations
-                if (gamePanel.getGameState() != null && gamePanel.getGameState().isPaused()) {
-                    Thread.sleep(100); // Small sleep to prevent CPU hogging while paused
+                if (gameState != null && gameState.isPaused()) {
+                    try {
+                        Thread.sleep(20); // Small sleep to prevent CPU hogging while paused
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                    
                     lastUpdateTime = System.currentTimeMillis(); // Reset the timer when unpaused
                     continue; // Skip this update cycle
                 }
@@ -45,28 +53,32 @@ public class AnimationController implements Runnable {
                 
                 // Make sure we keep to our target frame rate
                 if (elapsedTime < FRAME_TIME) {
-                    Thread.sleep(FRAME_TIME - elapsedTime);
+                    try {
+                        Thread.sleep(FRAME_TIME - elapsedTime);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
                 
-                // Update and repaint
-                updateAnimations();
+                // Update and repaint on the EDT to avoid threading issues with Swing
+                try {
+                    SwingUtilities.invokeLater(() -> {
+                        if (isRunning && gamePanel != null) {
+                            gamePanel.updateAnimations();
+                            gamePanel.repaint();
+                        }
+                    });
+                } catch (Exception e) {
+                    System.err.println("Error updating animations: " + e.getMessage());
+                }
                 
                 lastUpdateTime = System.currentTimeMillis();
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            System.err.println("Error in animation controller: " + e.getMessage());
+            e.printStackTrace();
         }
-    }
-    
-    /**
-     * Updates all animations
-     */
-    private void updateAnimations() {
-        // Update on the EDT to avoid threading issues with Swing
-        SwingUtilities.invokeLater(() -> {
-            gamePanel.updateAnimations();
-            gamePanel.repaint();
-        });
     }
     
     /**
@@ -74,5 +86,11 @@ public class AnimationController implements Runnable {
      */
     public void stop() {
         isRunning = false;
+        
+        // Interrupt the thread to break out of any sleeps
+        Thread currentThread = Thread.currentThread();
+        if (currentThread != null) {
+            currentThread.interrupt();
+        }
     }
 }

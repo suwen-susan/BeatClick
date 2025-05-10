@@ -59,9 +59,10 @@ public class BeatClick {
     /**
      * Starts a new game with the selected song
      * @param songId The ID of the selected song
+     * @param gameMode The selected game mode
+     * @param difficultyLevel The selected difficulty level
      */
-    public void startGame(String songId) {
-
+    public void startGame(String songId, GameState.GameMode gameMode, GameState.DifficultyLevel difficultyLevel) {
         // Prompt user for name
         String playerName = JOptionPane.showInputDialog(mainWindow, "Enter your name:", "Player Name", JOptionPane.PLAIN_MESSAGE);
 
@@ -80,7 +81,7 @@ public class BeatClick {
         GamePanel gamePanel = new GamePanel();
         mainWindow.add(gamePanel, BorderLayout.CENTER);
         gameManager.setPlayerName(playerName.trim()); // Set player name here
-        gameManager.startGame(songId, gamePanel);
+        gameManager.startGame(songId, gamePanel, gameMode, difficultyLevel);
         
         mainWindow.revalidate();
         mainWindow.repaint();
