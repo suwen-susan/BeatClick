@@ -73,16 +73,21 @@ cd beatclick
 # Build with Gradle
 ./gradle build
 ```
+or
+```bash
+gradle build
+```
 
 ### Running the Game
 
 ```bash
-# Run with Gradle
 ./gradle run
-
-# Or run the JAR directly
-java -jar build/libs/beatclick-1.0-SNAPSHOT.jar
 ```
+or
+```bash
+gradle run
+```
+
 
 ### Adding Custom Songs
 
