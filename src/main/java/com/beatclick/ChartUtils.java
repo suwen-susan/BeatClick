@@ -15,6 +15,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 
+import org.jfree.chart.plot.PiePlot;
+import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
+
 public class ChartUtils {
 
     public static JPanel createLeaderboardBarChart(String songId, List<ScoreRecord> records, Dimension panelSize) {
@@ -85,8 +88,19 @@ public class ChartUtils {
                 true, true, false
         );
 
+
+        PiePlot plot = (PiePlot) chart.getPlot();
+    
+        // Set the label font and color
+        plot.setSectionPaint("Excellent", new Color(255, 215, 0));  // Gold Excellent
+        plot.setSectionPaint("Good", new Color(46, 204, 113));      // Green Good
+        plot.setSectionPaint("Poor", new Color(52, 152, 219));      // Blue Poor
+        plot.setSectionPaint("Miss", new Color(231, 76, 60));       // Red Miss
+        
+        
         ChartPanel panel = new ChartPanel(chart);
         panel.setPreferredSize(new Dimension(500, 300));
+
         return panel;
     }
 
