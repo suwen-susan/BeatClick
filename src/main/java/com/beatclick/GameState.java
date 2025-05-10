@@ -17,6 +17,14 @@ public class GameState {
     }
 
     /**
+     * Gets the game manager
+     * @return The game manager
+     */
+    public GameManager getGameManager() {
+        return gameManager;
+    }
+
+    /**
      * Rating - Represents the quality of a note hit
      */
     public enum Rating {
@@ -49,6 +57,10 @@ public class GameState {
     private int poorCount;
     private int missCount;
     
+    // pause management
+    private long totalPausedTime = 0;      // total time the game has been paused (milliseconds)
+    private long pauseStartTime = 0;       // the time when the game was paused (milliseconds)
+
     // Notes management
     private final List<Note> activeNotes; // Notes currently on screen
     private final List<Note> upcomingNotes; // Notes yet to appear
@@ -225,7 +237,18 @@ public class GameState {
      * @param paused The pause state to set
      */
     public void setPaused(boolean paused) {
+        if (this.paused == paused) return;
+    
         this.paused = paused;
+        
+        if (paused) {
+            pauseStartTime = System.currentTimeMillis();
+        } else {
+            if (pauseStartTime > 0) {
+                totalPausedTime += (System.currentTimeMillis() - pauseStartTime);
+                pauseStartTime = 0;
+            }
+        }
     }
     
     /**
@@ -249,7 +272,14 @@ public class GameState {
      * @return The current game time relative to start
      */
     public long getCurrentGameTime() {
-        return System.currentTimeMillis() - gameStartTime;
+        // return System.currentTimeMillis() - gameStartTime;
+        long currentRealTime = System.currentTimeMillis();
+    
+        if (paused && pauseStartTime > 0) {
+            return pauseStartTime - gameStartTime - totalPausedTime;
+        }
+        
+        return currentRealTime - gameStartTime - totalPausedTime;
     }
     
     /**
@@ -266,6 +296,11 @@ public class GameState {
      * Moves missed notes from active to processed
      */
     public void updateNotes() {
+        // If game is paused, don't update notes at all
+        if (isPaused()) {
+            return;
+        }
+
         long currentTime = getCurrentGameTime();
         
         // Move upcoming notes to active notes when it's time

@@ -114,6 +114,14 @@ public class GameManager {
     public void setMainApp(BeatClick mainApp) {
         this.mainApp = mainApp;
     }
+
+    /**
+     * Gets the main application reference
+     * @return The main application
+     */
+    public BeatClick getMainApp() {
+        return mainApp;
+    }
     
     /**
      * Pauses the current game
