@@ -1,7 +1,7 @@
 # BeatClick - Music Rhythm Game
 
 **Final Project for Java Course**
-By Suwen Wang (sw6359), Yifei Xu (yx3590), Ruqing Liu (rl5256)
+By Suwen Wang (sw6359), Yifei Xu (yx3590), Ruqing Liu (rl5652)
 
 ## Project Overview
 
