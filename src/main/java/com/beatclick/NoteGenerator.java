@@ -1,6 +1,8 @@
 package com.beatclick;
 
 import javax.sound.sampled.*;
+import javax.swing.JFrame;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -74,16 +76,38 @@ public class NoteGenerator implements Runnable {
         // Normalize note times to make them start at a reasonable time
         normalizeNoteTimes();
         
-        // // Debug: Check if any notes were generated
-        // System.out.println("DEBUG: Total notes loaded/generated: " + noteData.size());
-        // if (noteData.size() > 0) {
-        //     System.out.println("DEBUG: First note time: " + noteData.get(0).hitTime + ", Last note time: " + 
-        //                        noteData.get(noteData.size() - 1).hitTime);
-        // } else {
-        //     System.out.println("DEBUG: *** NO NOTES GENERATED! ***");
-        //     // Add a few emergency notes for testing if none were generated
-        //     addEmergencyNotes();
-        // }
+    }
+
+     /**
+     * Static method to just generate notes for a song file without running the game
+     * This is used when importing new songs
+     * 
+     * @param songId The song ID (filename without extension)
+     * @return true if note generation was successful, false otherwise
+     */
+    public static boolean generateNotesForSong(String songId) {
+        try {
+            // Create a dummy game manager just for note generation
+            JFrame dummyFrame = new JFrame();
+            GameManager dummyManager = new GameManager(dummyFrame);
+            
+            // Create note generator instance
+            NoteGenerator noteGenerator = new NoteGenerator(songId, dummyManager);
+            
+            // Check if notes were generated
+            if (noteGenerator.noteData.isEmpty()) {
+                System.err.println("Failed to generate notes for: " + songId);
+                return false;
+            }
+            
+            // Notes were generated and saved in constructor
+            return true;
+            
+        } catch (Exception e) {
+            System.err.println("Error generating notes for " + songId + ": " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
     
     /**
@@ -246,9 +270,6 @@ public class NoteGenerator implements Runnable {
             if (!noteData.isEmpty()) {
                 // Sort by hit time
                 noteData.sort(Comparator.comparingLong(n -> n.hitTime));
-                
-                // Ensure reasonable spacing
-                // ensureReasonableNoteSpacing();
                 
                 System.out.println("Loaded and optimized " + noteData.size() + " notes from file: " + notesFilePath);
             }

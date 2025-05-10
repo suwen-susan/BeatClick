@@ -8,6 +8,12 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 /**
  * MenuPanel - Main menu for the game
@@ -45,13 +51,25 @@ public class MenuPanel extends JPanel {
         songListPanel = new JPanel();
         songListPanel.setLayout(new BoxLayout(songListPanel, BoxLayout.Y_AXIS));
         songListPanel.setBackground(new Color(40, 40, 50));
-        songListPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(new Color(100, 100, 100)), "Select a Song"));
+        songListPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(new Color(100, 100, 100)), 
+            "Select a Song", 
+            javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION,
+            javax.swing.border.TitledBorder.DEFAULT_POSITION,
+            null,
+            Color.WHITE));
         
         // Create high score panel
         highScorePanel = new JPanel();
         highScorePanel.setLayout(new BoxLayout(highScorePanel, BoxLayout.Y_AXIS));
         highScorePanel.setBackground(new Color(40, 40, 50));
-        highScorePanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(new Color(100, 100, 100)), "High Scores"));
+        highScorePanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(new Color(100, 100, 100)), 
+            "High Scores", 
+            javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION,
+            javax.swing.border.TitledBorder.DEFAULT_POSITION,
+            null,
+            Color.WHITE));
 
 
         // Create scroll panes
@@ -113,13 +131,59 @@ public class MenuPanel extends JPanel {
     private void loadAvailableSongs() {
         availableSongs.clear();
         songListPanel.removeAll();
+
+        // Add label and import button container
+        // JPanel headerPanel = new JPanel(new BorderLayout());
+        JPanel headerPanel = new JPanel();
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.X_AXIS));
+        headerPanel.setBackground(new Color(40, 40, 50));
+        headerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        headerPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
         
         // Add label
         JLabel instructionLabel = new JLabel("Click a song to play:");
         instructionLabel.setForeground(Color.WHITE);
         instructionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        instructionLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
-        songListPanel.add(instructionLabel);
+        // instructionLabel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        // songListPanel.add(instructionLabel);
+        headerPanel.add(instructionLabel);
+
+        // Add import button
+        JButton importButton = new JButton("+");
+        importButton.setToolTipText("Import WAV file");
+        importButton.setBackground(new Color(60, 60, 70));
+        importButton.setForeground(Color.BLACK); 
+        importButton.setFocusPainted(false);
+        importButton.setPreferredSize(new Dimension(24, 24));
+        importButton.setMaximumSize(new Dimension(24, 24));
+        importButton.setMinimumSize(new Dimension(24, 24));
+        importButton.setMargin(new Insets(0, 0, 0, 0)); 
+        importButton.setFont(new Font("Arial", Font.BOLD, 16));
+        
+        // Add hover effect
+        importButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                importButton.setBackground(new Color(80, 80, 90));
+            }
+            
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                importButton.setBackground(new Color(60, 60, 70));
+            }
+        });
+        
+        // Add action listener
+        importButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                importWavFile();
+            }
+        });
+
+        headerPanel.add(Box.createHorizontalGlue());   
+        headerPanel.add(importButton);
+        
+        // headerPanel.add(importButton, BorderLayout.EAST);
+        songListPanel.add(headerPanel);
         
         // Check if assets directory exists
         File songDir = new File("assets/songs");
@@ -155,6 +219,135 @@ public class MenuPanel extends JPanel {
         
         songListPanel.revalidate();
         songListPanel.repaint();
+    }
+
+    /**
+     * Creates necessary directories for assets
+     */
+    private void createAssetsDirectories() {
+        // Create assets directories
+        File assetsDir = new File("assets");
+        File songsDir = new File("assets/songs");
+        
+        if (!assetsDir.exists()) {
+            assetsDir.mkdir();
+        }
+        
+        if (!songsDir.exists()) {
+            songsDir.mkdir();
+        }
+    }
+    
+    /**
+     * Imports a WAV file and generates note data
+     */
+    private void importWavFile() {
+        // Show file chooser
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Import WAV File");
+        fileChooser.setFileFilter(new FileNameExtensionFilter("WAV Files", "wav"));
+        
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File selectedFile = fileChooser.getSelectedFile();
+            String fileName = selectedFile.getName();
+            
+            // Make sure it's a WAV file
+            if (!fileName.toLowerCase().endsWith(".wav")) {
+                JOptionPane.showMessageDialog(this, "Please select a WAV file.", "Invalid File Type", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // Create the destination directory if needed
+            createAssetsDirectories();
+            
+            try {
+                // Show a progress dialog
+                JDialog progressDialog = createProgressDialog("Importing song...");
+                
+                // Set up task for importing and generating note data
+                SwingWorker<Boolean, Void> importTask = new SwingWorker<Boolean, Void>() {
+                    @Override
+                    protected Boolean doInBackground() throws Exception {
+                        // Copy file to assets/songs directory
+                        Path sourcePath = selectedFile.toPath();
+                        Path destPath = Paths.get("assets/songs", fileName);
+                        Files.copy(sourcePath, destPath, StandardCopyOption.REPLACE_EXISTING);
+                        
+                        // Get song ID (filename without extension)
+                        String songId = fileName.substring(0, fileName.lastIndexOf('.'));
+                        
+                        // Generate notes using the static method
+                        return NoteGenerator.generateNotesForSong(songId);
+                    }
+                    
+                    @Override
+                    protected void done() {
+                        // Close progress dialog
+                        progressDialog.dispose();
+                        
+                        try {
+                            boolean success = get();
+                            
+                            // Refresh song list
+                            loadAvailableSongs();
+                            updateHighScores();
+                            
+                            // Show success message
+                            if (success) {
+                                JOptionPane.showMessageDialog(MenuPanel.this, 
+                                    "Song imported successfully!", "Import Complete", JOptionPane.INFORMATION_MESSAGE);
+                            } else {
+                                JOptionPane.showMessageDialog(MenuPanel.this, 
+                                    "Song imported but note generation may have failed. You can still play the song.",
+                                    "Partial Import", JOptionPane.WARNING_MESSAGE);
+                            }
+                        } catch (Exception ex) {
+                            JOptionPane.showMessageDialog(MenuPanel.this, 
+                                "Error completing import: " + ex.getMessage(), "Import Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                };
+                
+                importTask.execute();
+                progressDialog.setVisible(true);
+                
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, 
+                    "Error importing song: " + ex.getMessage(), "Import Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    /**
+     * Creates a progress dialog for long operations
+     * @param message The message to display
+     * @return The progress dialog
+     */
+    private JDialog createProgressDialog(String message) {
+          Frame parent = (Frame) SwingUtilities.getWindowAncestor(this);
+        
+          JDialog dialog = new JDialog(parent, "Processing", true);
+          
+          JPanel panel = new JPanel(new BorderLayout(10, 10));
+          panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+          panel.setBackground(new Color(40, 40, 50));
+          
+          JLabel messageLabel = new JLabel(message);
+          messageLabel.setForeground(Color.WHITE);
+          
+          JProgressBar progressBar = new JProgressBar();
+          progressBar.setIndeterminate(true);
+          
+          panel.add(messageLabel, BorderLayout.NORTH);
+          panel.add(progressBar, BorderLayout.CENTER);
+          
+          dialog.setContentPane(panel);
+          dialog.setSize(300, 100);
+          dialog.setLocationRelativeTo(this);
+          dialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+          
+          return dialog;
     }
     
     /**
@@ -283,6 +476,7 @@ public class MenuPanel extends JPanel {
             songListPanel.add(songButton);
         }
     }
+
     /**
      * Click each song name and show Leaderboard Dialog
      */
