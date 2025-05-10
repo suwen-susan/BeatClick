@@ -46,6 +46,9 @@ The game utilizes Java's concurrency framework to manage several threads:
 10. **GamePanel.java**: Renders the game graphics
 11. **MenuPanel.java**: Implements the main menu
 12. **DatabaseManager.java**: Manages score persistence using SQLite
+13. **ScoreRecord**: Represents a single player's performance record including score details and timing information.
+14. **ChartUtils**: Provides reusable methods to generate styled charts for visualizing player scores and rating distributions.
+
 
 
 ## Setup and Running
