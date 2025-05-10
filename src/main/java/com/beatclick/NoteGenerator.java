@@ -101,6 +101,12 @@ public class NoteGenerator implements Runnable {
             JFrame dummyFrame = new JFrame();
             GameManager dummyManager = new GameManager(dummyFrame);
             
+            GameState gameState = new GameState();
+            gameState.setSongId(songId);
+            gameState.setGameMode(GameState.GameMode.NORMAL);
+            
+            dummyManager.setGameState(gameState);
+
             // Create note generator instance
             NoteGenerator noteGenerator = new NoteGenerator(songId, dummyManager);
             
@@ -979,7 +985,7 @@ public class NoteGenerator implements Runnable {
      */
     private void optimizeGlobalNoteDensity() {
         if (baseNoteData.isEmpty()) return;
-        long beatMs = (long)(60000f / bpm); // 每拍的毫秒数
+        long beatMs = (long)(60000f / bpm);
         
         // ========== Step 0: Sort notes by hit time ==========
         List<NoteData> sortedNotes = new ArrayList<>(baseNoteData);
@@ -1009,8 +1015,8 @@ public class NoteGenerator implements Runnable {
             if (spacing >= absoluteMinSpacing) {
                 spacedNotes.add(currentNote);
             } else {
-                System.out.println("Removing note at time " + currentNote.hitTime + 
-                                " (too close to previous note, spacing: " + spacing + "ms)");
+                // System.out.println("Removing note at time " + currentNote.hitTime + 
+                //                 " (too close to previous note, spacing: " + spacing + "ms)");
             }
         }
         
@@ -1040,8 +1046,8 @@ public class NoteGenerator implements Runnable {
             if (notesInWindow < maxNotesPerWindow) {
                 densityControlledNotes.add(note);
             } else {
-                System.out.println("Removing note at time " + note.hitTime + 
-                                " (window already has " + notesInWindow + " notes)");
+                // System.out.println("Removing note at time " + note.hitTime + 
+                //                 " (window already has " + notesInWindow + " notes)");
             }
         }
         
@@ -1064,8 +1070,8 @@ public class NoteGenerator implements Runnable {
             // calculate the time difference between current and previous note
             if (currentNote.laneIndex == previousNote.laneIndex && 
                 (currentNote.hitTime - previousNote.hitTime) < beatMs) {
-                System.out.println("Removing note at time " + currentNote.hitTime + 
-                                " (same lane as previous note and too close)");
+                // System.out.println("Removing note at time " + currentNote.hitTime + 
+                //                 " (same lane as previous note and too close)");
             } else {
                 finalNotes.add(currentNote);
             }
@@ -1088,8 +1094,8 @@ public class NoteGenerator implements Runnable {
                 if (currentNote.laneIndex == previousNote.laneIndex) {
                     // Find a new lane that is not the same as the previous note's lane
                     int newLane = (previousNote.laneIndex + 2) % NUM_LANES; // skip neighboring lane
-                    System.out.println("Moving note at time " + currentNote.hitTime + 
-                                    " from lane " + currentNote.laneIndex + " to lane " + newLane);
+                    // System.out.println("Moving note at time " + currentNote.hitTime + 
+                    //                 " from lane " + currentNote.laneIndex + " to lane " + newLane);
                     currentNote.laneIndex = newLane;
                 }
             }
@@ -1117,7 +1123,7 @@ public class NoteGenerator implements Runnable {
             if (spacing1 < beatMs * 0.4 && spacing2 < beatMs * 0.4) { 
                 // remove the middle note (note2) to break the pattern
                 tripleFilteredNotes.remove(tripleFilteredNotes.size() - 1);
-                System.out.println("Breaking very tight triple note pattern by removing middle note at " + note2.hitTime);
+                // System.out.println("Breaking very tight triple note pattern by removing middle note at " + note2.hitTime);
                 
                 // check if the third note (note3) is also too close to the first note (note1)
                 long newSpacing = note3.hitTime - note1.hitTime;
@@ -1126,7 +1132,7 @@ public class NoteGenerator implements Runnable {
                 if (newSpacing >= beatMs * 0.5) {
                     tripleFilteredNotes.add(note3);
                 } else {
-                    System.out.println("Also skipping third note in triple pattern");
+                    // System.out.println("Also skipping third note in triple pattern");
                 }
             } else {
                 // If the spacing is acceptable, add the note3 to the filtered list
@@ -1187,7 +1193,7 @@ public class NoteGenerator implements Runnable {
                     
                     //Add the new note to the list of notes to add
                     notesToAdd.add(new NoteData(newTime, newLane));
-                    System.out.println("Adding filler note at time " + newTime + " in lane " + newLane);
+                    // System.out.println("Adding filler note at time " + newTime + " in lane " + newLane);
                 }
             }
         }
@@ -1273,10 +1279,8 @@ public class NoteGenerator implements Runnable {
      * @return Array of length NUM_LANES with band energies.
      */
     private double[] calculateBandEnergies(byte[] allBytes, int offset, int length, AudioFormat format) {
-        // 防御性代码：检查参数
         if (length <= 0) {
             System.out.println("Warning: Attempted to calculate band energies with non-positive length: " + length);
-            // 返回空能量数组避免异常
             return new double[NUM_LANES];
         }
         
@@ -1285,7 +1289,6 @@ public class NoteGenerator implements Runnable {
             return new double[NUM_LANES];
         }
         
-        // 确保不会越界
         length = Math.min(length, allBytes.length - offset);
         
         
