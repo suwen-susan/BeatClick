@@ -47,14 +47,6 @@ The game utilizes Java's concurrency framework to manage several threads:
 11. **MenuPanel.java**: Implements the main menu
 12. **DatabaseManager.java**: Manages score persistence using SQLite
 
-## Custom Song Import Support
-
-BeatClick allows players to easily add their own songs and note patterns:
-
-1. **WAV File Import**
-   Click the "+" button and import the .wav file. The system will generate notes for you.
-3. **No Code Changes Needed**
-   The system is fully dynamic —— no need to recompile or edit Java files to add songs.
 
 ## Setup and Running
 
@@ -85,10 +77,8 @@ gradle run
 ```
 
 ### Adding Custom Songs
-
-1. Place your WAV audio files in the `assets/songs` directory
-2. The game will automatically detect and list them in the menu
-3. For custom note patterns, create a matching `.notes` file with the same name as your WAV file
+BeatClick allows players to easily add their own songs and note patterns:
+   Click the "+" button and import the .wav file. The system will generate notes for you. The system is fully dynamic —— no need to recompile or edit Java files to add songs.
 
 ## Controls
 
