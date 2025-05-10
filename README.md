@@ -52,15 +52,9 @@ The game utilizes Java's concurrency framework to manage several threads:
 BeatClick allows players to easily add their own songs and note patterns:
 
 1. **WAV File Import**
-   Simply place your `.wav` audio files in the `assets/songs/` directory. The game will automatically detect them and list them in the song selection menu.
-2. **Custom Note Patterns**
-   To provide matching note sequences, create a `.notes` file with the same base name as the audio file. For example:
-
-   * Audio: `my_song.wav`
-   * Notes: `my_song.notes`
-     The note file should follow the internal timestamp format to match when each note should be triggered.
+   Click the "+" button and import the .wav file. The system will generate notes for you.
 3. **No Code Changes Needed**
-   The system is fully dynamic—no need to recompile or edit Java files to add songs.
+   The system is fully dynamic —— no need to recompile or edit Java files to add songs.
 
 ## Setup and Running
 
