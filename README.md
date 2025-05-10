@@ -72,10 +72,6 @@ BeatClick allows players to easily add their own songs and note patterns:
 ### Building the Project
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/beatclick.git
-cd beatclick
-
 # Build with Gradle
 ./gradle build
 ```
@@ -85,9 +81,6 @@ cd beatclick
 ```bash
 # Run with Gradle
 ./gradle run
-
-# Or run the JAR directly
-java -jar build/libs/beatclick-1.0-SNAPSHOT.jar
 ```
 
 ### Adding Custom Songs
@@ -99,8 +92,7 @@ java -jar build/libs/beatclick-1.0-SNAPSHOT.jar
 ## Controls
 
 - **D, F, J, K**: Hit notes in lanes 1, 2, 3, and 4 respectively
-- **Mouse Click**: Click on the lane to hit notes
-- **ESC or P**: Pause/Resume the game, the note and track appearance can be changed in the pause page
+- **Mouse Click**: Click on the lane to hit notes. Use Pause button to Pause/Resume the game, the note and track appearance can be changed in the pause page
 
 ## Technical Challenges and Solutions
 
@@ -122,7 +114,3 @@ java -jar build/libs/beatclick-1.0-SNAPSHOT.jar
 - More visual effects and themes
 - Custom note pattern editor
 - Support for various audio formats beyond WAV
-
-## License
-
-This project is for educational purposes only.
