@@ -52,7 +52,8 @@ public class MenuPanel extends JPanel {
         highScorePanel.setLayout(new BoxLayout(highScorePanel, BoxLayout.Y_AXIS));
         highScorePanel.setBackground(new Color(40, 40, 50));
         highScorePanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(new Color(100, 100, 100)), "High Scores"));
-        
+
+
         // Create scroll panes
         JScrollPane songScrollPane = new JScrollPane(songListPanel);
         songScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
@@ -210,7 +211,7 @@ public class MenuPanel extends JPanel {
         
         // Get high scores from database
         for (String songName : availableSongs) {
-            int highScore = DatabaseManager.getHighScore(songName);
+            int highScore = DatabaseManager.getHighScoreFromDetailedTable(songName);
             
             JPanel scorePanel = new JPanel(new BorderLayout());
             scorePanel.setBackground(new Color(50, 50, 60));
@@ -228,7 +229,15 @@ public class MenuPanel extends JPanel {
             
             scorePanel.add(songLabel, BorderLayout.WEST);
             scorePanel.add(scoreLabel, BorderLayout.EAST);
-            
+
+            // Add click listener to panel
+            scorePanel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            scorePanel.addMouseListener(new java.awt.event.MouseAdapter() {
+                public void mouseClicked(java.awt.event.MouseEvent evt) {
+                    showLeaderboardDialog(songName);
+                }
+            });
+
             highScorePanel.add(scorePanel);
         }
         
@@ -274,4 +283,20 @@ public class MenuPanel extends JPanel {
             songListPanel.add(songButton);
         }
     }
+    /**
+     * Click each song name and show Leaderboard Dialog
+     */
+    private void showLeaderboardDialog(String songId) {
+        List<ScoreRecord> records = DatabaseManager.getTopScoresBySong(songId);
+        Dimension panelSize = this.getSize();  // MenuPanel 当前大小
+        if (records.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No data available for this song.", "Leaderboard", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JPanel chartPanel = ChartUtils.createLeaderboardBarChart(songId, records, panelSize);
+        JOptionPane.showMessageDialog(this, chartPanel, "Leaderboard: " + songId, JOptionPane.PLAIN_MESSAGE);
+    }
+
+
 }

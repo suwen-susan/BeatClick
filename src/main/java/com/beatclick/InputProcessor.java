@@ -80,13 +80,11 @@ public class InputProcessor implements Runnable {
                 }
                 
                 // Process input events from the queue
-                InputEvent event = inputQueue.poll();
+                InputEvent event = inputQueue.take();
                 if (event != null) {
                     gameManager.processNoteClick(event.getLaneIndex(), event.getEventTime());
                 }
-                
-                // Short sleep to reduce CPU usage
-                Thread.sleep(5);
+
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -61,11 +61,25 @@ public class BeatClick {
      * @param songId The ID of the selected song
      */
     public void startGame(String songId) {
+
+        // Prompt user for name
+        String playerName = JOptionPane.showInputDialog(mainWindow, "Enter your name:", "Player Name", JOptionPane.PLAIN_MESSAGE);
+
+        if (playerName == null) {
+            // User clicked "Cancel" → do not start game
+            return;
+        }
+
+        if (playerName.trim().isEmpty()) {
+            // Empty name but confirmed → use "Anonymous"
+            playerName = "Anonymous";
+        }
+
         mainWindow.getContentPane().removeAll();
         
         GamePanel gamePanel = new GamePanel();
         mainWindow.add(gamePanel, BorderLayout.CENTER);
-        
+        gameManager.setPlayerName(playerName.trim()); // Set player name here
         gameManager.startGame(songId, gamePanel);
         
         mainWindow.revalidate();

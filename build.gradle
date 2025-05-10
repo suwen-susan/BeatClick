@@ -16,7 +16,8 @@ repositories {
 dependencies {
     // SQLite JDBC driver
     implementation 'org.xerial:sqlite-jdbc:3.36.0.3'
-    
+    // jfreechart dependencies
+    implementation 'org.jfree:jfreechart:1.5.4'
     // JUnit for testing
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'

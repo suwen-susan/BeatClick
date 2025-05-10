@@ -2,7 +2,9 @@ package com.beatclick;
 
 import java.sql.*;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,7 +14,8 @@ public class DatabaseManager {
     
     private static final String DB_NAME = "beatclick.db";
     private static final String TABLE_NAME = "high_scores";
-    
+    private static final String DETAIL_RECORD = "score_records";
+
     // Cache for high scores to reduce database access
     private static final Map<String, Integer> highScoreCache = new HashMap<>();
     
@@ -33,7 +36,20 @@ public class DatabaseManager {
                          "(song_id TEXT PRIMARY KEY, " +
                          " score INTEGER NOT NULL)";
             stmt.execute(sql);
-            
+
+            // Table 2: new detailed records table
+            String detailedSql = "CREATE TABLE IF NOT EXISTS " + DETAIL_RECORD +"(" +
+                    "username TEXT NOT NULL, " +
+                    "end_time TEXT NOT NULL, " +
+                    "song_id TEXT NOT NULL, " +
+                    "score INTEGER NOT NULL, " +
+                    "miss_count INTEGER DEFAULT 0, " +
+                    "poor_count INTEGER DEFAULT 0, " +
+                    "good_count INTEGER DEFAULT 0, " +
+                    "excellent_count INTEGER DEFAULT 0, " +
+                    "PRIMARY KEY (username, end_time))";
+            stmt.execute(detailedSql);
+
         } catch (SQLException e) {
             System.err.println("Error initializing database: " + e.getMessage());
         }
@@ -64,45 +80,78 @@ public class DatabaseManager {
      * @param score The score to save
      */
     public static void saveScore(String songId, int score) {
-        // Initialize the database if needed
         initDatabase();
-        
-        // Only save if it's a high score
+
         if (!isHighScore(songId, score)) {
             return;
         }
-        
+
         try (Connection conn = getConnection()) {
-            // Check if a record already exists for this song
-            String sql = "SELECT score FROM " + TABLE_NAME + " WHERE song_id = ?";
-            PreparedStatement pstmt = conn.prepareStatement(sql);
-            pstmt.setString(1, songId);
-            ResultSet rs = pstmt.executeQuery();
-            
-            if (rs.next()) {
-                // Update existing record
-                sql = "UPDATE " + TABLE_NAME + " SET score = ? WHERE song_id = ?";
-                pstmt = conn.prepareStatement(sql);
-                pstmt.setInt(1, score);
-                pstmt.setString(2, songId);
-                pstmt.executeUpdate();
-            } else {
-                // Insert new record
-                sql = "INSERT INTO " + TABLE_NAME + " (song_id, score) VALUES (?, ?)";
-                pstmt = conn.prepareStatement(sql);
-                pstmt.setString(1, songId);
-                pstmt.setInt(2, score);
-                pstmt.executeUpdate();
+            // Check if a record already exists
+            String checkSql = "SELECT score FROM " + TABLE_NAME + " WHERE song_id = ?";
+            try (PreparedStatement checkStmt = conn.prepareStatement(checkSql)) {
+                checkStmt.setString(1, songId);
+                ResultSet rs = checkStmt.executeQuery();
+
+                if (rs.next()) {
+                    // Update existing record
+                    String updateSql = "UPDATE " + TABLE_NAME + " SET score = ? WHERE song_id = ?";
+                    try (PreparedStatement updateStmt = conn.prepareStatement(updateSql)) {
+                        updateStmt.setInt(1, score);
+                        updateStmt.setString(2, songId);
+                        updateStmt.executeUpdate();
+                    }
+                } else {
+                    // Insert new record
+                    String insertSql = "INSERT INTO " + TABLE_NAME + " (song_id, score) VALUES (?, ?)";
+                    try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
+                        insertStmt.setString(1, songId);
+                        insertStmt.setInt(2, score);
+                        insertStmt.executeUpdate();
+                    }
+                }
             }
-            
-            // Update the cache
             highScoreCache.put(songId, score);
-            
+
         } catch (SQLException e) {
             System.err.println("Error saving score: " + e.getMessage());
         }
     }
-    
+
+
+    /**
+     *
+     */
+
+    public static void saveDetailedScore(String username,
+                                         String songId,
+                                         String endTime,
+                                         int score,
+                                         int miss,
+                                         int poor,
+                                         int good,
+                                         int excellent) {
+        initDatabase();
+
+        try (Connection conn = getConnection()) {
+            String sql = "INSERT INTO " + DETAIL_RECORD + " " +
+                    "(username, end_time, song_id, score, miss_count, poor_count, good_count, excellent_count) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+            PreparedStatement pstmt = conn.prepareStatement(sql);
+            pstmt.setString(1, username);
+            pstmt.setString(2, endTime);
+            pstmt.setString(3, songId);
+            pstmt.setInt(4, score);
+            pstmt.setInt(5, miss);
+            pstmt.setInt(6, poor);
+            pstmt.setInt(7, good);
+            pstmt.setInt(8, excellent);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Error saving detailed score: " + e.getMessage());
+        }
+    }
+
     /**
      * Gets the high score for a song
      * @param songId The ID of the song
@@ -178,4 +227,98 @@ public class DatabaseManager {
         
         return scores;
     }
+
+    public static List<ScoreRecord> getTopScoresBySong(String songId) {
+        initDatabase();
+
+        String sql = "SELECT username, score, end_time " +
+                "FROM " + DETAIL_RECORD + " sr " +
+                "WHERE (username, score) IN ( " +
+                "    SELECT username, MAX(score) " +
+                "    FROM " + DETAIL_RECORD + " " +
+                "    WHERE song_id = ? " +
+                "    GROUP BY username " +
+                ") AND song_id = ? " +
+                "ORDER BY score DESC";
+
+        List<ScoreRecord> records = new ArrayList<>();
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, songId);
+            pstmt.setString(2, songId);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                String username = rs.getString("username");
+                int score = rs.getInt("score");
+                String endTime = rs.getString("end_time");
+
+                records.add(new ScoreRecord(songId, username, score, endTime));
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error querying top scores: " + e.getMessage());
+        }
+
+        return records;
+    }
+
+    public static int getHighScoreFromDetailedTable(String songId) {
+        initDatabase();
+        String sql = "SELECT MAX(score) AS max_score FROM " + DETAIL_RECORD + " WHERE song_id = ?";
+
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, songId);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("max_score");
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error retrieving high score from detailed table: " + e.getMessage());
+        }
+
+        return 0;
+    }
+
+    /**
+     * getHighScoreRecord: get the Highest Score's detail
+     * @param songId
+     * @return
+     */
+    public static ScoreRecord getHighScoreRecord(String songId) {
+        initDatabase();
+
+        String sql = "SELECT username, score, end_time, excellent_count, good_count, poor_count, miss_count " +
+                "FROM " + DETAIL_RECORD + " " +
+                "WHERE song_id = ? " +
+                "ORDER BY score DESC LIMIT 1";
+
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, songId);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return new ScoreRecord(
+                        songId,
+                        rs.getString("username"),
+                        rs.getInt("score"),
+                        rs.getString("end_time"),
+                        rs.getInt("excellent_count"),
+                        rs.getInt("good_count"),
+                        rs.getInt("poor_count"),
+                        rs.getInt("miss_count")
+                );
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching high score record: " + e.getMessage());
+        }
+
+        return null;
+    }
+
+
 }
