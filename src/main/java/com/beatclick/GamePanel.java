@@ -1,9 +1,6 @@
 package com.beatclick;
 
 import javax.swing.*;
-
-// import org.w3c.dom.events.MouseEvent;
-
 import java.awt.*;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseListener;
@@ -14,7 +11,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
-
+import java.awt.event.KeyEvent;
+import javax.swing.KeyStroke;
 /**
  * GamePanel - Handles rendering of the game
  * Displays notes, animations, and game state
@@ -24,12 +22,49 @@ GamePanel extends JPanel {
     
     // Constants for rendering
     private static final int NUM_LANES = 4;
-    private static final Color[] LANE_COLORS = {
-        new Color(231, 76, 60),  // Red
-        new Color(241, 196, 15), // Yellow
-        new Color(46, 204, 113), // Green
-        new Color(52, 152, 219)  // Blue
+    
+    // Visual Theme options
+    public enum NoteDesign {
+        CLASSIC,     // Classic square notes
+        CIRCULAR,    // Circular notes
+        DIAMOND      // Diamond shaped notes
+    }
+    
+    public enum LaneDesign {
+        STANDARD,    // Standard colored lanes
+        NEON,        // Bright neon colors
+        MINIMAL      // Minimal grayscale
+    }
+    
+    // Default theme settings
+    private NoteDesign noteDesign = NoteDesign.CLASSIC;
+    private LaneDesign laneDesign = LaneDesign.STANDARD;
+    
+    // Color themes for lanes
+    private static final Color[][] LANE_COLOR_THEMES = {
+        // STANDARD theme
+        {
+            new Color(231, 76, 60),   // Red
+            new Color(241, 196, 15),  // Yellow
+            new Color(46, 204, 113),  // Green
+            new Color(52, 152, 219)   // Blue
+        },
+        // NEON theme
+        {
+            new Color(255, 41, 117),  // Neon pink
+            new Color(63, 255, 33),   // Neon green
+            new Color(33, 217, 255),  // Neon blue
+            new Color(255, 189, 33)   // Neon orange
+        },
+        // MINIMAL theme
+        {
+            new Color(60, 60, 60),    // Dark gray
+            new Color(90, 90, 90),    // Medium gray
+            new Color(120, 120, 120), // Light gray
+            new Color(150, 150, 150)  // Very light gray
+        }
     };
+    
     private static final Color TARGET_LINE_COLOR = new Color(255, 255, 255);
     private static final Color BACKGROUND_COLOR = new Color(20, 20, 30);
     private static final int NOTE_SIZE = 50;
@@ -173,51 +208,59 @@ GamePanel extends JPanel {
         });
     }
 
-    /**
-     * Handles pause button click event
-     * Shows pause dialog with options to resume or return to main menu
-     */
-    private void handlePauseButtonClick() {
-        if (gameState != null) {
-            if (!gameState.isPaused()) {
-                // Pause the game
-                gameState.getGameManager().pauseGame();
-                
-                // Show pause dialog
-                JPanel pausePanel = createPausePanel();
-                // int option = JOptionPane.showOptionDialog(
-                //         this,
-                //         pausePanel,
-                //         "Game Paused",
-                //         JOptionPane.DEFAULT_OPTION,
-                //         JOptionPane.PLAIN_MESSAGE,
-                //         null,
-                //         new Object[]{},
-                //         null
-                // );
+// In GamePanel.java, update handlePauseButtonClick() method:
 
-                // Create a dialog that will stay on top
-                JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(this), "Game Paused", true);
-                dialog.setContentPane(pausePanel);
-                dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-                dialog.setSize(300, 150);
-                dialog.setLocationRelativeTo(this);
-                dialog.setAlwaysOnTop(true);
-                
-                // Add WindowListener to handle when user clicks the X button
-                dialog.addWindowListener(new java.awt.event.WindowAdapter() {
-                    @Override
-                    public void windowClosing(java.awt.event.WindowEvent e) {
-                        // Resume game when dialog is closed with X
-                        gameState.getGameManager().resumeGame();
-                    }
-                });
-                
-                // Show the dialog
-                dialog.setVisible(true);
-            }
+// In GamePanel.java:
+
+private void handlePauseButtonClick() {
+    if (gameState != null) {
+        boolean currentlyPaused = gameState.isPaused();
+        
+        if (!currentlyPaused) {
+            // Pause the game
+            gameState.getGameManager().pauseGame();
+            
+            // Show pause dialog
+            JPanel pausePanel = createPausePanel();
+            
+            // Create a dialog that will stay on top
+            final JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(this), "Game Paused", true);
+            dialog.setContentPane(pausePanel);
+            dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+            dialog.setSize(300, 220);
+            dialog.setLocationRelativeTo(this);
+            dialog.setAlwaysOnTop(true);
+            
+            // Add WindowListener to handle when user clicks the X button
+            dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    // Resume game when dialog is closed with X
+                    gameState.getGameManager().resumeGame();
+                }
+            });
+            
+            // Add escape key handler to close dialog
+            KeyStroke stroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
+            dialog.getRootPane().registerKeyboardAction(e -> {
+                dialog.dispose();
+                gameState.getGameManager().resumeGame();
+            }, stroke, JComponent.WHEN_IN_FOCUSED_WINDOW);
+            
+            // Disable the pause button until the dialog is closed
+            isPauseButtonHovered = false;
+            
+            // Show the dialog (this will block until dialog is closed)
+            dialog.setVisible(true);
+            
+            // Request focus after dialog closes
+            SwingUtilities.invokeLater(() -> {
+                requestFocusInWindow();
+            });
         }
     }
+}
+
 
      /**
      * Creates the pause menu panel with resume and main menu buttons
@@ -225,9 +268,13 @@ GamePanel extends JPanel {
      */
     private JPanel createPausePanel() {
         JPanel panel = new JPanel();
-        panel.setLayout(new GridLayout(2, 1, 0, 10));
+        panel.setLayout(new BorderLayout());
         panel.setBackground(new Color(40, 40, 50));
         panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Main buttons panel
+        JPanel buttonsPanel = new JPanel(new GridLayout(2, 1, 0, 10));
+        buttonsPanel.setBackground(new Color(40, 40, 50));
         
         JButton resumeButton = createPauseMenuButton("Resume Game");
         JButton mainMenuButton = createPauseMenuButton("Return to Main Menu");
@@ -262,8 +309,55 @@ GamePanel extends JPanel {
             gameState.getGameManager().getMainApp().returnToMenu();
         });
         
-        panel.add(resumeButton);
-        panel.add(mainMenuButton);
+        buttonsPanel.add(resumeButton);
+        buttonsPanel.add(mainMenuButton);
+        
+        // Appearance settings panel
+        JPanel appearancePanel = new JPanel(new GridLayout(2, 2, 10, 10));
+        appearancePanel.setBackground(new Color(40, 40, 50));
+        appearancePanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(new Color(80, 80, 90), 1),
+            "Appearance Settings"
+        ));
+        
+        // Note design selector
+        JLabel noteLabel = new JLabel("Note Style:");
+        noteLabel.setForeground(Color.WHITE);
+        
+        String[] noteDesigns = {"Classic", "Circular", "Diamond"};
+        JComboBox<String> noteDesignSelector = new JComboBox<>(noteDesigns);
+        noteDesignSelector.setSelectedIndex(noteDesign.ordinal());
+        noteDesignSelector.addActionListener(e -> {
+            int index = noteDesignSelector.getSelectedIndex();
+            if (index >= 0 && index < NoteDesign.values().length) {
+                noteDesign = NoteDesign.values()[index];
+                repaint();
+            }
+        });
+        
+        // Lane design selector
+        JLabel laneLabel = new JLabel("Lane Style:");
+        laneLabel.setForeground(Color.WHITE);
+        
+        String[] laneDesigns = {"Standard", "Neon", "Minimal"};
+        JComboBox<String> laneDesignSelector = new JComboBox<>(laneDesigns);
+        laneDesignSelector.setSelectedIndex(laneDesign.ordinal());
+        laneDesignSelector.addActionListener(e -> {
+            int index = laneDesignSelector.getSelectedIndex();
+            if (index >= 0 && index < LaneDesign.values().length) {
+                laneDesign = LaneDesign.values()[index];
+                repaint();
+            }
+        });
+        
+        appearancePanel.add(noteLabel);
+        appearancePanel.add(noteDesignSelector);
+        appearancePanel.add(laneLabel);
+        appearancePanel.add(laneDesignSelector);
+        
+        // Add both panels to main panel
+        panel.add(buttonsPanel, BorderLayout.NORTH);
+        panel.add(appearancePanel, BorderLayout.CENTER);
         
         return panel;
     }
@@ -328,6 +422,11 @@ GamePanel extends JPanel {
      * @return true if the point is on the pause button, false otherwise
      */
     public boolean isPauseButtonClick(Point point) {
+        // If we're already paused, don't allow clicking the pause button
+        if (gameState != null && gameState.isPaused()) {
+            return false;
+        }
+        
         return pauseButtonRect != null && pauseButtonRect.contains(point);
     }
         
@@ -397,7 +496,6 @@ GamePanel extends JPanel {
      * Shows a hit effect at the note position
      * @param laneIndex The lane index
      * @param rating The rating of the hit
-     * @param noteYPosition The Y position of the note when hit
      */
     public void showHitEffect(int laneIndex, GameState.Rating rating) {
         VisualEffect.EffectType effectType;
@@ -483,6 +581,24 @@ GamePanel extends JPanel {
     }
     
     /**
+     * Set the note design style
+     * @param noteDesign The note design to use
+     */
+    public void setNoteDesign(NoteDesign noteDesign) {
+        this.noteDesign = noteDesign;
+        repaint();
+    }
+    
+    /**
+     * Set the lane design style
+     * @param laneDesign The lane design to use
+     */
+    public void setLaneDesign(LaneDesign laneDesign) {
+        this.laneDesign = laneDesign;
+        repaint();
+    }
+    
+    /**
      * Custom painting for the game panel
      * @param g The graphics context
      */
@@ -499,12 +615,15 @@ GamePanel extends JPanel {
         int height = getHeight();
         int laneWidth = width / NUM_LANES;
         
+        // Get lane colors based on current theme
+        Color[] laneColors = LANE_COLOR_THEMES[laneDesign.ordinal()];
+        
         // Draw lanes
         for (int i = 0; i < NUM_LANES; i++) {
             int laneX = i * laneWidth;
             
             // Draw lane background
-            g2d.setColor(LANE_COLORS[i].darker().darker());
+            g2d.setColor(laneColors[i].darker().darker());
             g2d.fillRect(laneX, 0, laneWidth, height);
             
             // Draw lane separator
@@ -517,19 +636,52 @@ GamePanel extends JPanel {
         g2d.setColor(TARGET_LINE_COLOR);
         g2d.fillRect(0, targetY, width, TARGET_LINE_HEIGHT);
         
-        // Draw notes
+        // Draw notes with the selected note design
         for (Note note : notes) {
             int laneIndex = note.getLaneIndex();
             int laneX = laneIndex * laneWidth;
             int noteY = (int)(note.getYPosition() * height) - NOTE_SIZE / 2;
+            int centerX = laneX + laneWidth/2;
+            int centerY = noteY + NOTE_SIZE/2;
             
             // Draw note with lane color
-            g2d.setColor(LANE_COLORS[laneIndex]);
-            g2d.fillRoundRect(laneX + laneWidth/2 - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE, 10, 10);
+            g2d.setColor(laneColors[laneIndex]);
             
-            // Draw note border
-            g2d.setColor(Color.WHITE);
-            g2d.drawRoundRect(laneX + laneWidth/2 - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE, 10, 10);
+            switch (noteDesign) {
+                case CIRCULAR:
+                    // Draw circular note
+                    g2d.fillOval(centerX - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE);
+                    g2d.setColor(Color.WHITE);
+                    g2d.drawOval(centerX - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE);
+                    break;
+                    
+                case DIAMOND:
+                    // Draw diamond note
+                    int[] xPoints = {
+                        centerX, 
+                        centerX + NOTE_SIZE/2, 
+                        centerX, 
+                        centerX - NOTE_SIZE/2
+                    };
+                    int[] yPoints = {
+                        noteY, 
+                        centerY, 
+                        noteY + NOTE_SIZE, 
+                        centerY
+                    };
+                    g2d.fillPolygon(xPoints, yPoints, 4);
+                    g2d.setColor(Color.WHITE);
+                    g2d.drawPolygon(xPoints, yPoints, 4);
+                    break;
+                    
+                case CLASSIC:
+                default:
+                    // Draw classic square note
+                    g2d.fillRoundRect(centerX - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE, 10, 10);
+                    g2d.setColor(Color.WHITE);
+                    g2d.drawRoundRect(centerX - NOTE_SIZE/2, noteY, NOTE_SIZE, NOTE_SIZE, 10, 10);
+                    break;
+            }
         }
 
         // Find the most recent/important effect for center display
@@ -658,6 +810,14 @@ GamePanel extends JPanel {
             // Draw miss count
             g2d.setColor(MISS_COLOR);
             g2d.drawString("Miss: " + gameState.getMissCount(), 20, 150);
+            
+            // Draw game mode and difficulty info
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Arial", Font.BOLD, 14));
+            g2d.drawString("Mode: " + gameState.getGameMode().getDisplayName(), 20, 180);
+            if (gameState.getGameMode() != GameState.GameMode.PRACTICE) {
+                g2d.drawString("Difficulty: " + gameState.getDifficultyLevel().getDisplayName(), 20, 200);
+            }
         }
 
         // Draw game state (e.g. health bar)
@@ -672,34 +832,51 @@ GamePanel extends JPanel {
             int healthBarX = width - healthBarWidth - 20; // right side padding
             int healthBarY = 20; // top padding
             
-            // draw health bar background
-            g2d.setColor(new Color(50, 50, 50, 200));
-            g2d.fillRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
-            
-            // calculate health percentage
-            float healthPercentage = (float) remainingLives / maxMisses;
-            int currentHealthWidth = (int) (healthBarWidth * healthPercentage);
-            
-            // change color based on health percentage
-            if (healthPercentage > 0.6) {
-                g2d.setColor(new Color(50, 205, 50)); // green -- safe
-            } else if (healthPercentage > 0.3) {
-                g2d.setColor(new Color(255, 165, 0)); // orange -- caution
+            // Only show health bar in normal mode
+            if (gameState.getGameMode() != GameState.GameMode.PRACTICE) {
+                // draw health bar background
+                g2d.setColor(new Color(50, 50, 50, 200));
+                g2d.fillRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
+                
+                // calculate health percentage
+                float healthPercentage = (float) remainingLives / maxMisses;
+                int currentHealthWidth = (int) (healthBarWidth * healthPercentage);
+                
+                // change color based on health percentage
+                if (healthPercentage > 0.6) {
+                    g2d.setColor(new Color(50, 205, 50)); // green -- safe
+                } else if (healthPercentage > 0.3) {
+                    g2d.setColor(new Color(255, 165, 0)); // orange -- caution
+                } else {
+                    g2d.setColor(new Color(220, 20, 60)); // red -- danger
+                }
+                
+                // draw health bar
+                g2d.fillRoundRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight, 10, 10);
+                
+                // draw health bar border
+                g2d.setColor(Color.WHITE);
+                g2d.drawRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
             } else {
-                g2d.setColor(new Color(220, 20, 60)); // red -- danger
+                // Show practice mode indicator instead of health bar
+                g2d.setColor(new Color(80, 180, 255));
+                g2d.setFont(new Font("Arial", Font.BOLD, 16));
+                g2d.drawString("Practice Mode", width - 140, healthBarY + 15);
             }
-            
-            // draw health bar
-            g2d.fillRoundRect(healthBarX, healthBarY, currentHealthWidth, healthBarHeight, 10, 10);
-            
-            // draw health bar border
-            g2d.setColor(Color.WHITE);
-            g2d.drawRoundRect(healthBarX, healthBarY, healthBarWidth, healthBarHeight, 10, 10);
 
-            // Draw pause button to the left of the health bar
+            // Draw pause button
             int pauseButtonSize = 30;
-            int pauseButtonX = healthBarX - pauseButtonSize - 10; // 10px gap between button and health bar
-            int pauseButtonY = healthBarY + (healthBarHeight - pauseButtonSize) / 2; // Center vertically with health bar
+            int pauseButtonX, pauseButtonY;
+            
+            if (gameState.getGameMode() != GameState.GameMode.PRACTICE) {
+                // Position left of health bar in normal mode
+                pauseButtonX = healthBarX - pauseButtonSize - 10;
+                pauseButtonY = healthBarY + (healthBarHeight - pauseButtonSize) / 2;
+            } else {
+                // Position left of practice mode text
+                pauseButtonX = width - 180 - pauseButtonSize;
+                pauseButtonY = healthBarY + (healthBarHeight - pauseButtonSize) / 2;
+            }
 
             // Store button rectangle for click detection
             pauseButtonRect = new Rectangle(pauseButtonX, pauseButtonY, pauseButtonSize, pauseButtonSize);
@@ -737,9 +914,6 @@ GamePanel extends JPanel {
         g2d.setFont(new Font("Arial", Font.BOLD, 16));
         String[] keyHints = {"D", "F", "J", "K"};
         for (int i = 0; i < NUM_LANES; i++) {
-            // int laneX = i * laneWidth;
-            // g2d.drawString(keyHints[i], laneX + laneWidth/2 - 5, height - 20);
-            
             int laneX = i * laneWidth;
             g2d.setColor(Color.WHITE);
             int keyX = laneX + laneWidth/2 - 5;
@@ -753,7 +927,6 @@ GamePanel extends JPanel {
             // Draw key hint text
             g2d.setColor(Color.WHITE);
             g2d.drawString(keyHints[i], keyX, keyY);
-        
         }
     }
 

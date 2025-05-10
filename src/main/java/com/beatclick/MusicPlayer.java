@@ -14,8 +14,7 @@ public class MusicPlayer implements Runnable {
     private final GameManager gameManager;
     
     private Clip audioClip;
-    private boolean isPaused;
-    private boolean isRunning;
+    private volatile boolean isRunning;
     private long pausePosition;
     
     /**
@@ -26,7 +25,6 @@ public class MusicPlayer implements Runnable {
     public MusicPlayer(String songId, GameManager gameManager) {
         this.songId = songId;
         this.gameManager = gameManager;
-        this.isPaused = false;
         this.isRunning = false;
         this.pausePosition = 0;
     }
@@ -36,9 +34,16 @@ public class MusicPlayer implements Runnable {
      */
     @Override
     public void run() {
+        isRunning = true;
+        
         try {
             // Load the audio file
             File audioFile = new File("assets/songs/" + songId + ".wav");
+            if (!audioFile.exists()) {
+                System.err.println("Audio file not found: " + audioFile.getAbsolutePath());
+                return;
+            }
+            
             AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
             
             // Get audio format
@@ -51,41 +56,30 @@ public class MusicPlayer implements Runnable {
             
             // Add a listener to detect when music ends
             audioClip.addLineListener(event -> {
-                if (event.getType() == LineEvent.Type.STOP && !isPaused) {
+                if (event.getType() == LineEvent.Type.STOP && isRunning && !gameManager.isPaused()) {
                     audioClip.close();
                     songCompleted();
                 }
             });
             
-            // Wait for a short delay to ensure game is ready
-            Thread.sleep(500);
-            
             // Start playback
-            isRunning = true;
             audioClip.start();
             
             // Stay in this thread until the song finishes or the game stops
-            while (gameManager.isGameRunning() && isRunning) {
-                synchronized (gameManager.getSyncLock()) {
-                    if (gameManager.getGameState().isPaused()) {
-                        // Wait until the game is resumed
-                        try {
-                            gameManager.getSyncLock().wait();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            break;
-                        }
-                    }
+            while (isRunning && gameManager.isGameRunning()) {
+                // Short sleep to reduce CPU usage
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
-                Thread.sleep(100); // Sleep to reduce CPU usage
             }
             
         } catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
             System.err.println("Error playing audio: " + e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         } finally {
-            stop();
+            stop(); // Clean up resources
         }
     }
     
@@ -96,25 +90,56 @@ public class MusicPlayer implements Runnable {
         if (audioClip != null && audioClip.isRunning()) {
             pausePosition = audioClip.getMicrosecondPosition();
             audioClip.stop();
-            isPaused = true;
         }
     }
     
     /**
-     * Resumes the music playback
+     * Resumes the music playback from the last pause position
      */
     public void resume() {
-        if (audioClip != null && isPaused) {
-            long gameTimeMs = gameManager.getGameState().getCurrentGameTime();
-            long newPositionMicros = gameTimeMs * 1000;
-            
-            if (newPositionMicros > audioClip.getMicrosecondLength()) {
-                newPositionMicros = 0;
+        if (audioClip != null) {
+            try {
+                if (pausePosition < audioClip.getMicrosecondLength()) {
+                    audioClip.setMicrosecondPosition(pausePosition);
+                    audioClip.start();
+                } else {
+                    // We're past the end of the song, close it
+                    audioClip.close();
+                    songCompleted();
+                }
+            } catch (Exception e) {
+                System.err.println("Error resuming audio playback: " + e.getMessage());
             }
-            
-            audioClip.setMicrosecondPosition(newPositionMicros);
-            audioClip.start();
-            isPaused = false;
+        }
+    }
+    
+    /**
+     * Resumes the music playback from a specific position in milliseconds
+     * @param positionMs Position in milliseconds
+     */
+    public void resumeFromPosition(long positionMs) {
+        if (audioClip != null) {
+            try {
+                long microPos = positionMs * 1000; // Convert ms to microseconds
+                if (microPos < audioClip.getMicrosecondLength()) {
+                    audioClip.setMicrosecondPosition(microPos);
+                    audioClip.start();
+                } else {
+                    // We're past the end of the song, close it
+                    audioClip.close();
+                    songCompleted();
+                }
+            } catch (Exception e) {
+                System.err.println("Error resuming audio from position: " + e.getMessage());
+                
+                // Fall back to restart if there's an error
+                try {
+                    audioClip.setMicrosecondPosition(0);
+                    audioClip.start();
+                } catch (Exception ex) {
+                    System.err.println("Error with fallback audio restart: " + ex.getMessage());
+                }
+            }
         }
     }
     
@@ -125,8 +150,13 @@ public class MusicPlayer implements Runnable {
         isRunning = false;
         
         if (audioClip != null) {
-            audioClip.stop();
-            audioClip.close();
+            try {
+                audioClip.stop();
+                audioClip.close();
+            } catch (Exception e) {
+                System.err.println("Error closing audio clip: " + e.getMessage());
+            }
+            audioClip = null;
         }
     }
     

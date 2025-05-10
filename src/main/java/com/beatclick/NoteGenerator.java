@@ -32,6 +32,7 @@ public class NoteGenerator implements Runnable {
     private final GameManager gameManager;
     private final Random random;
     private final List<NoteData> noteData;
+    private final List<NoteData> baseNoteData; // Original notes before difficulty adjustment
     
     private boolean isRunning;
     
@@ -55,6 +56,12 @@ public class NoteGenerator implements Runnable {
             this.hitTime = hitTime;
             this.laneIndex = laneIndex;
         }
+        
+        // Copy constructor
+        NoteData(NoteData other) {
+            this.hitTime = other.hitTime;
+            this.laneIndex = other.laneIndex;
+        }
     }
     
     /**
@@ -67,18 +74,21 @@ public class NoteGenerator implements Runnable {
         this.gameManager = gameManager;
         this.random = new Random();
         this.noteData = new ArrayList<>();
+        this.baseNoteData = new ArrayList<>();
         this.isRunning = false;
         this.bpm = DEFAULT_BPM;
         
-        // Load note data from file or generate from audio
-        loadNoteData();
+        // Load base note data from file or generate from audio
+        loadBaseNoteData();
+        
+        // Generate difficulty-specific notes
+        generateNotesForDifficulty();
         
         // Normalize note times to make them start at a reasonable time
         normalizeNoteTimes();
-        
     }
 
-     /**
+    /**
      * Static method to just generate notes for a song file without running the game
      * This is used when importing new songs
      * 
@@ -108,6 +118,303 @@ public class NoteGenerator implements Runnable {
             e.printStackTrace();
             return false;
         }
+    }
+    
+    /**
+     * Loads the base note data (medium difficulty) from file or generates it
+     */
+    private void loadBaseNoteData() {
+        String notesFilePath = "assets/songs/" + songId + ".notes";
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(notesFilePath))) {
+            String line;
+            boolean isFirstLine = true;
+            baseNoteData.clear(); // Clear any existing note data
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+
+                if (isFirstLine && line.startsWith("#")) {
+                    isFirstLine = false;
+                    // Try to extract BPM from metadata
+                    if (line.contains("BPM:")) {
+                        try {
+                            int bpmStart = line.indexOf("BPM:") + 4;
+                            int bpmEnd = line.indexOf(";", bpmStart);
+                            if (bpmEnd == -1) bpmEnd = line.length();
+                            String bpmStr = line.substring(bpmStart, bpmEnd);
+                            this.bpm = Float.parseFloat(bpmStr);
+                        } catch (Exception e) {
+                            System.err.println("Error parsing BPM metadata: " + e.getMessage());
+                            // Fall back to default BPM or detection
+                            this.bpm = DEFAULT_BPM;
+                        }
+                    }
+                    continue;
+                }
+                // Parse each line in format: hitTime,laneIndex
+                String[] parts = line.split(",");
+                if (parts.length == 2) {
+                    try{
+                        long hitTime = Long.parseLong(parts[0].trim());
+                        int laneIndex = Integer.parseInt(parts[1].trim());
+                        
+                        // Validate lane index
+                        if (laneIndex >= 0 && laneIndex < NUM_LANES) {
+                            // Add to note data
+                            baseNoteData.add(new NoteData(hitTime, laneIndex));
+                        }
+                    }catch (NumberFormatException e) {
+                        System.err.println("Error parsing note data line: " + line);
+                    }
+                    
+                }
+            }
+            if (!baseNoteData.isEmpty()) {
+                // Sort by hit time
+                baseNoteData.sort(Comparator.comparingLong(n -> n.hitTime));
+                System.out.println("Loaded " + baseNoteData.size() + " base notes from file: " + notesFilePath);
+            }
+        } catch (IOException e) {
+            // File not found, try to generate from audio analysis
+            System.out.println("Note data file not found, attempting to generate from audio analysis.");
+            boolean audioAnalysisSuccessful = generateNotesFromAudio();
+            
+            // If audio analysis failed, fall back to algorithmic generation
+            if (!audioAnalysisSuccessful) {
+                System.out.println("Audio analysis failed, generating notes algorithmically.");
+                generateNotesAlgorithmically();
+            }
+            
+            // Now the baseNoteData should be populated
+            if (!baseNoteData.isEmpty()) {
+                baseNoteData.sort(Comparator.comparingLong(n -> n.hitTime));
+                
+                // Save the generated notes for future use
+                saveNotesToFile();
+            }
+        }
+    }
+    
+    /**
+     * Generates difficulty-specific note patterns based on the current difficulty level
+     */
+    private void generateNotesForDifficulty() {
+        // Make a copy of the base notes first
+        noteData.clear();
+        for (NoteData note : baseNoteData) {
+            noteData.add(new NoteData(note));
+        }
+        
+        // Only apply difficulty adjustment in normal mode
+        if (gameManager.getGameState().getGameMode() == GameState.GameMode.NORMAL) {
+            GameState.DifficultyLevel difficulty = gameManager.getGameState().getDifficultyLevel();
+            
+            switch (difficulty) {
+                case EASY:
+                    generateEasyNotes();
+                    break;
+                case HARD:
+                    generateHardNotes();
+                    break;
+                case MEDIUM:
+                default:
+                    // Medium difficulty uses the base notes
+                    break;
+            }
+        }
+        
+        // Sort the notes by hit time
+        noteData.sort(Comparator.comparingLong(n -> n.hitTime));
+        System.out.println("Generated " + noteData.size() + " notes for " + 
+                           gameManager.getGameState().getDifficultyLevel().getDisplayName() + " difficulty");
+    }
+    
+    /**
+     * Generates a simplified pattern for Easy difficulty
+     */
+    private void generateEasyNotes() {
+        // Only keep a subset of notes for easy mode (about 60-70%)
+        List<NoteData> easyNotes = new ArrayList<>();
+        
+        // Calculate beat duration in milliseconds
+        long beatMs = Math.round(60000f / bpm);
+        
+        // Threshold for what's considered a "dense" part (notes close together)
+        long denseThreshold = beatMs * 2; // 2 beats
+        
+        if (baseNoteData.isEmpty()) {
+            return;
+        }
+        
+        // First pass: identify dense sections
+        List<Integer> denseStartIndices = new ArrayList<>();
+        List<Integer> denseEndIndices = new ArrayList<>();
+        
+        int currentStartIndex = 0;
+        boolean inDenseSection = false;
+        
+        for (int i = 1; i < baseNoteData.size(); i++) {
+            long timeDiff = baseNoteData.get(i).hitTime - baseNoteData.get(i-1).hitTime;
+            
+            if (timeDiff < denseThreshold) {
+                if (!inDenseSection) {
+                    // Start of a dense section
+                    currentStartIndex = i - 1;
+                    inDenseSection = true;
+                }
+            } else if (inDenseSection) {
+                // End of a dense section
+                denseStartIndices.add(currentStartIndex);
+                denseEndIndices.add(i - 1);
+                inDenseSection = false;
+            }
+        }
+        
+        // Don't forget the last dense section if we're still in one
+        if (inDenseSection) {
+            denseStartIndices.add(currentStartIndex);
+            denseEndIndices.add(baseNoteData.size() - 1);
+        }
+        
+        // Second pass: build easy note pattern
+        // 1. Keep all notes that are not in dense sections
+        // 2. For dense sections, keep only the main beats
+        
+        // Track which indices we've already processed
+        Set<Integer> processedIndices = new HashSet<>();
+        
+        // Process dense sections
+        for (int sectionIdx = 0; sectionIdx < denseStartIndices.size(); sectionIdx++) {
+            int startIdx = denseStartIndices.get(sectionIdx);
+            int endIdx = denseEndIndices.get(sectionIdx);
+            
+            // Get the first note in the section
+            NoteData firstNote = baseNoteData.get(startIdx);
+            easyNotes.add(new NoteData(firstNote));
+            processedIndices.add(startIdx);
+            
+            // For longer dense sections, keep every other note
+            if (endIdx - startIdx > 3) {
+                for (int i = startIdx + 2; i <= endIdx; i += 2) {
+                    easyNotes.add(new NoteData(baseNoteData.get(i)));
+                    processedIndices.add(i);
+                }
+            }
+        }
+        
+        // Add all non-dense section notes
+        for (int i = 0; i < baseNoteData.size(); i++) {
+            if (!processedIndices.contains(i)) {
+                // Keep this note with a high probability (80%)
+                if (random.nextFloat() < 0.8f) {
+                    easyNotes.add(new NoteData(baseNoteData.get(i)));
+                }
+            }
+        }
+        
+        // Sort by hit time
+        easyNotes.sort(Comparator.comparingLong(n -> n.hitTime));
+        
+        // Replace the note data with our easy notes
+        noteData.clear();
+        noteData.addAll(easyNotes);
+    }
+    
+    /**
+     * Generates a more complex pattern for Hard difficulty
+     */
+    private void generateHardNotes() {
+        // Start with a copy of the base notes
+        List<NoteData> hardNotes = new ArrayList<>();
+        for (NoteData note : baseNoteData) {
+            hardNotes.add(new NoteData(note));
+        }
+        
+        // Calculate beat duration in milliseconds
+        long beatMs = Math.round(60000f / bpm);
+        
+        // Threshold for what's considered enough space to add notes
+        long spaceThreshold = beatMs; // 1 beat
+        
+        // Find gaps where we can add extra notes
+        for (int i = 0; i < baseNoteData.size() - 1; i++) {
+            NoteData current = baseNoteData.get(i);
+            NoteData next = baseNoteData.get(i + 1);
+            
+            long timeDiff = next.hitTime - current.hitTime;
+            
+            // If there's enough space for an extra note
+            if (timeDiff > spaceThreshold) {
+                // 50% chance to add a note in the middle
+                if (random.nextFloat() < 0.5f) {
+                    // Position roughly in the middle with some randomness
+                    long middleTime = current.hitTime + timeDiff / 2 + 
+                                     (random.nextInt(100) - 50); // +/- 50ms random offset
+                    
+                    // Pick a lane that's different from both adjacent notes
+                    int lane;
+                    do {
+                        lane = random.nextInt(NUM_LANES);
+                    } while (lane == current.laneIndex || lane == next.laneIndex);
+                    
+                    hardNotes.add(new NoteData(middleTime, lane));
+                }
+                
+                // For very large gaps, we might add two notes (25% chance)
+                if (timeDiff > spaceThreshold * 3 && random.nextFloat() < 0.25f) {
+                    // Add at 1/3 and 2/3 of the gap
+                    long firstExtraTime = current.hitTime + timeDiff / 3;
+                    long secondExtraTime = current.hitTime + (2 * timeDiff) / 3;
+                    
+                    int lane1 = (current.laneIndex + 1) % NUM_LANES;
+                    int lane2 = (next.laneIndex + 2) % NUM_LANES;
+                    
+                    hardNotes.add(new NoteData(firstExtraTime, lane1));
+                    hardNotes.add(new NoteData(secondExtraTime, lane2));
+                }
+            }
+        }
+        
+        // Find opportunity to add chord-like note patterns (2 lanes at once)
+        // Look for strong beats with enough space before and after
+        List<NoteData> chordNotes = new ArrayList<>();
+        
+        for (NoteData note : baseNoteData) {
+            // Check if this note falls on a strong beat
+            boolean isOnBeat = Math.abs(note.hitTime % beatMs) < 50; // within 50ms of exact beat
+            
+            // If it's on a beat and it's not a dense area (no notes 300ms before/after)
+            boolean hasDenseNeighbors = false;
+            for (NoteData other : baseNoteData) {
+                if (other != note) {
+                    long timeDiff = Math.abs(other.hitTime - note.hitTime);
+                    if (timeDiff < 300) {
+                        hasDenseNeighbors = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (isOnBeat && !hasDenseNeighbors && random.nextFloat() < 0.3f) {
+                // Add a "chord" note in a different lane
+                int otherLane;
+                do {
+                    otherLane = random.nextInt(NUM_LANES);
+                } while (otherLane == note.laneIndex);
+                
+                chordNotes.add(new NoteData(note.hitTime, otherLane));
+            }
+        }
+        
+        // Add all the chord notes
+        hardNotes.addAll(chordNotes);
+        
+        // Sort by hit time
+        hardNotes.sort(Comparator.comparingLong(n -> n.hitTime));
+        
+        // Replace the note data with our hard notes
+        noteData.clear();
+        noteData.addAll(hardNotes);
     }
     
     /**
@@ -150,7 +457,7 @@ public class NoteGenerator implements Runnable {
         for (int i = 0; i < 30; i++) {
             long hitTime = 3000 + (i * 1000); // Start at 3 seconds, then one per second
             int laneIndex = i % NUM_LANES;
-            noteData.add(new NoteData(hitTime, laneIndex));
+            baseNoteData.add(new NoteData(hitTime, laneIndex));
         }
     }
     
@@ -185,32 +492,29 @@ public class NoteGenerator implements Runnable {
                 
                 // Calculate spawn time based on hit time and travel duration
                 long hitTime = data.hitTime;
+                
+                // Use a fixed travel time for all notes - the speed multiplier
+                // will be applied when the note is added to the game
                 long spawnTime = hitTime - NOTE_TRAVEL_TIME_MS;
                 int laneIndex = data.laneIndex;
                 
                 // Skip notes that should have already spawned
                 long currentTime = gameManager.getGameState().getCurrentGameTime();
                 if (spawnTime < currentTime) {
-                    // System.out.println("DEBUG: Skipping note, spawnTime=" + spawnTime + ", currentTime=" + currentTime);
                     continue;
                 }
                 
                 // Wait until it's time to spawn this note
                 long waitTime = spawnTime - currentTime;
                 if (waitTime > 0) {
-                    // System.out.println("DEBUG: Waiting " + waitTime + "ms to spawn note at lane " + laneIndex);
                     Thread.sleep(waitTime);
                 }
                 
                 // Add the note to the game
                 if (isRunning && gameManager.isGameRunning() && !gameManager.getGameState().isPaused()) {
-                    // System.out.println("DEBUG: Adding note at lane " + laneIndex + ", spawnTime=" + spawnTime + ", hitTime=" + hitTime);
                     gameManager.addNote(laneIndex, spawnTime, hitTime);
                 }
             }
-            
-            // Debug output when all notes have been processed
-            // System.out.println("DEBUG: All notes have been processed");
             
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -322,21 +626,13 @@ public class NoteGenerator implements Runnable {
                 System.out.println("Detected BPM: " + bpm);
             }
             
-            // Generate notes through onset detection
-            // generateNotesFromOnsets(audioStream, format, bpm);
+            // Generate notes through grid-based analysis
             generateNotesByGrid(audioStream, format, bpm);
-
-
-            if (noteData.size() > 0) {
-                boolean saveSuccess = saveNotesToFile();
-                if (saveSuccess) {
-                    System.out.println("Successfully saved " + noteData.size() + " notes to file.");
-                } else {
-                    System.out.println("Failed to save notes to file.");
-                }
-            }
             
-            return noteData.size() > 0;
+            // Copy base notes for use in different difficulties
+            if (!baseNoteData.isEmpty()) {
+                return true;
+            }
             
         } catch (UnsupportedAudioFileException e) {
             System.err.println("Unsupported audio file format: " + e.getMessage());
@@ -349,6 +645,8 @@ public class NoteGenerator implements Runnable {
             e.printStackTrace();
             return false;
         }
+        
+        return false;
     }
 
     /**
@@ -360,7 +658,7 @@ public class NoteGenerator implements Runnable {
         
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(notesFilePath))) {
             // Sort notes by hit time before saving
-            List<NoteData> sortedNotes = new ArrayList<>(noteData);
+            List<NoteData> sortedNotes = new ArrayList<>(baseNoteData);
             sortedNotes.sort(Comparator.comparingLong(n -> n.hitTime));
             
             writer.write("# BPM:" + bpm + ";VERSION:1.0;TIMESTAMP:" + System.currentTimeMillis());
@@ -533,6 +831,8 @@ public class NoteGenerator implements Runnable {
      * This is a fallback method if audio analysis fails
      */
     private void generateNotesAlgorithmically() {
+        baseNoteData.clear();
+        
         // Assume a standard 4/4 time signature with 120 BPM
         // Quarter note = 500ms
         int bpm = 120;
@@ -549,7 +849,7 @@ public class NoteGenerator implements Runnable {
             int laneIndex = random.nextInt(NUM_LANES);
             
             // Add the note
-            noteData.add(new NoteData(currentTime, laneIndex));
+            baseNoteData.add(new NoteData(currentTime, laneIndex));
             
             // Move to the next beat (with slight variations)
             int pattern = random.nextInt(10);
@@ -571,7 +871,7 @@ public class NoteGenerator implements Runnable {
             }
         }
         
-        System.out.println("Generated " + noteData.size() + " notes algorithmically.");
+        System.out.println("Generated " + baseNoteData.size() + " notes algorithmically.");
     }
 
     /**
@@ -583,6 +883,9 @@ public class NoteGenerator implements Runnable {
      * @throws IOException On I/O error.
      */
     private void generateNotesByGrid(AudioInputStream audioStream, AudioFormat format, float bpm) throws IOException {
+        // Clear any existing data
+        baseNoteData.clear();
+        
         // --- 1. Load entire audio into memory ---
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         byte[] buf = new byte[4096];
@@ -604,7 +907,6 @@ public class NoteGenerator implements Runnable {
         float beatMs = 60000f / bpm;           // ms per beat
         int resolution = 8;                    // 4 subdivisions per beat
         float gridMs = beatMs / resolution;    // ms per grid step
-        // int totalMs = allBytes.length / frameSize * 1000 / (int)sampleRate;
         int totalMs = (int)audioLengthMs;
         int totalSteps = Math.max(1, totalMs / (int)gridMs);
 
@@ -657,7 +959,7 @@ public class NoteGenerator implements Runnable {
             for (int lane = 0; lane < NUM_LANES; lane++) {
                 // if current band energy significantly above its mean -> note
                 if (energies[lane] > meanEnergy[lane] * thresholdFactor) {
-                    noteData.add(new NoteData(startMs, lane));
+                    baseNoteData.add(new NoteData(startMs, lane));
                 }
             }
         }
@@ -666,7 +968,7 @@ public class NoteGenerator implements Runnable {
         optimizeGlobalNoteDensity();
 
         // --- 6. Sort by hit time to produce final sequence ---
-        noteData.sort(Comparator.comparingLong(n -> n.hitTime));
+        baseNoteData.sort(Comparator.comparingLong(n -> n.hitTime));
     }
 
   
@@ -676,11 +978,11 @@ public class NoteGenerator implements Runnable {
      * This includes applying a global minimum spacing, density control using a sliding window,
      */
     private void optimizeGlobalNoteDensity() {
-        if (noteData.isEmpty()) return;
+        if (baseNoteData.isEmpty()) return;
         long beatMs = (long)(60000f / bpm); // 每拍的毫秒数
         
         // ========== Step 0: Sort notes by hit time ==========
-        List<NoteData> sortedNotes = new ArrayList<>(noteData);
+        List<NoteData> sortedNotes = new ArrayList<>(baseNoteData);
         sortedNotes.sort(Comparator.comparingLong(n -> n.hitTime));
         
         System.out.println("Starting global density optimization with " + sortedNotes.size() + " notes");
@@ -954,22 +1256,11 @@ public class NoteGenerator implements Runnable {
         // ========== Last Step: Remove duplicates ==========
         
         // remove duplicates from the final notes list
-        noteData.clear();
-        noteData.addAll(finalNotesWithFiller);
+        baseNoteData.clear();
+        baseNoteData.addAll(finalNotesWithFiller);
         
-        System.out.println("Final optimized note count: " + noteData.size());
+        System.out.println("Final optimized note count: " + baseNoteData.size());
     }
-
-    // /**
-    //  * 检查时间点是否位于拍子上
-    //  */
-    // private boolean isOnBeat(long timeMs) {
-    //     float beatMs = 60000f / bpm;
-    //     return Math.abs(timeMs % (long)beatMs) < beatMs / 8;
-    // }
-
-
-
 
     /**
      * Compute energy in 4 frequency bands (bass, low-mid, mid-high, treble)

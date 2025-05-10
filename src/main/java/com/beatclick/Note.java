@@ -7,11 +7,15 @@ package com.beatclick;
 public class Note {
     
     private int laneIndex;
-    private long spawnTime; // When the note should appear on screen
-    private long hitTime;   // When the note should be hit (reach the target line)
+    private long originalSpawnTime; // Original spawn time before speed adjustment
+    private long originalHitTime;   // Original hit time before speed adjustment
+    private long spawnTime; // When the note should appear on screen (adjusted for speed)
+    private long hitTime;   // When the note should be hit (adjusted for speed)
     private float yPosition; // Current Y position for rendering (0.0 to 1.0, where 1.0 is bottom)
+    private float speedMultiplier = 1.0f; // Speed multiplier for note movement
 
-    private static final float TARGET_POSITION = 0.85f; //和 GamePanel 里的 TARGET_POSITION 保持一致
+    private static final float TARGET_POSITION = 0.85f; // Matches GamePanel's TARGET_POSITION
+    
     /**
      * Constructor
      * @param laneIndex The lane index where this note appears
@@ -20,6 +24,8 @@ public class Note {
      */
     public Note(int laneIndex, long spawnTime, long hitTime) {
         this.laneIndex = laneIndex;
+        this.originalSpawnTime = spawnTime;
+        this.originalHitTime = hitTime;
         this.spawnTime = spawnTime;
         this.hitTime = hitTime;
         this.yPosition = 0.0f; // Start at the top
@@ -71,27 +77,77 @@ public class Note {
      */
     public void updatePosition(long currentTime) {
         if (currentTime < spawnTime) {
-            // if the note hasn't spawned yet, set yPosition to 0.0
+            // If the note hasn't spawned yet, set yPosition to 0.0
             yPosition = 0.0f;
         } 
         else {
-            // 1) calculate the travel time from spawn to hit
-            float travelTime = hitTime - spawnTime;               // = NOTE_TRAVEL_TIME_MS
-
-            // 2) based on the target position, calculate the total time to reach the target position
-            //    so that at hitTime, the note is at the target position
-            float totalTime = travelTime / TARGET_POSITION;
-
-            // 3) calculate the elapsed time since spawn
+            // Calculate normalized time from spawn to hit
+            float totalTravel = hitTime - spawnTime;
             float elapsed = currentTime - spawnTime;
-
-            // 4) progerss between 0.0 and 1.0
-            float progress = elapsed / totalTime;
-            if (progress > 1.0f) progress = 1.0f;
-
-            // 5) calculate the Y position based on progress
-            yPosition = progress;
+            
+            if (currentTime <= hitTime) {
+                // Note hasn't reached the hit line yet
+                float progress = elapsed / totalTravel;
+                yPosition = progress * TARGET_POSITION;
+            } else {
+                // Note has passed the hit line
+                // Calculate how long it's been since passing the hit line
+                float timePastTarget = currentTime - hitTime;
+                
+                // Use a faster speed for notes past the hit line (looks better)
+                float acceleratedProgress = timePastTarget / (totalTravel * 0.3f);
+                
+                // Move from TARGET_POSITION to 1.0 (bottom of screen)
+                yPosition = TARGET_POSITION + (1.0f - TARGET_POSITION) * 
+                           Math.min(1.0f, acceleratedProgress);
+            }
         }
+    }
+    
+    /**
+     * Sets the speed multiplier for this note
+     * Higher values make the note move faster, lower values make it move slower
+     * Also adjusts the hit time and spawn time to match the new speed
+     * @param speedMultiplier The speed multiplier (1.0 = normal speed)
+     */
+    public void setSpeedMultiplier(float speedMultiplier) {
+        if (speedMultiplier <= 0) {
+            throw new IllegalArgumentException("Speed multiplier must be positive");
+        }
+        
+        this.speedMultiplier = speedMultiplier;
+        
+        // Calculate how long it should take for the note to travel from spawn to hit
+        long originalTravelTime = originalHitTime - originalSpawnTime;
+        long adjustedTravelTime = Math.round(originalTravelTime / speedMultiplier);
+        
+        // Keep the spawn time the same, but adjust the hit time
+        spawnTime = originalSpawnTime;
+        hitTime = spawnTime + adjustedTravelTime;
+    }
+    
+    /**
+     * Gets the speed multiplier for this note
+     * @return The speed multiplier
+     */
+    public float getSpeedMultiplier() {
+        return speedMultiplier;
+    }
+    
+    /**
+     * Gets the original hit time before speed adjustment
+     * @return The original hit time
+     */
+    public long getOriginalHitTime() {
+        return originalHitTime;
+    }
+    
+    /**
+     * Gets the original spawn time before speed adjustment
+     * @return The original spawn time
+     */
+    public long getOriginalSpawnTime() {
+        return originalSpawnTime;
     }
     
     /**

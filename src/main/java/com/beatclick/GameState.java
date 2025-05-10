@@ -11,6 +11,81 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class GameState {
     private GameManager gameManager;
 
+    /**
+     * Game mode - Determines game behavior
+     */
+    public enum GameMode {
+        NORMAL("Normal Mode", "Standard gameplay with health depletion."),
+        PRACTICE("Practice Mode", "Slower notes and no health depletion for practicing.");
+        
+        private final String displayName;
+        private final String description;
+        
+        GameMode(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+        
+        public String getDisplayName() {
+            return displayName;
+        }
+        
+        public String getDescription() {
+            return description;
+        }
+    }
+    
+    /**
+     * Difficulty level - Affects note speed, frequency and scoring
+     */
+    public enum DifficultyLevel {
+        EASY("Easy", "Fewer notes and slower speed."),
+        MEDIUM("Medium", "Standard note frequency and speed."),
+        HARD("Hard", "More notes and faster speed.");
+        
+        private final String displayName;
+        private final String description;
+        
+        DifficultyLevel(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
+        
+        public String getDisplayName() {
+            return displayName;
+        }
+        
+        public String getDescription() {
+            return description;
+        }
+        
+        /**
+         * Gets the speed multiplier for this difficulty
+         * @return The speed multiplier (1.0 = normal)
+         */
+        public float getSpeedMultiplier() {
+            switch(this) {
+                case EASY: return 0.75f;
+                case MEDIUM: return 1.0f;
+                case HARD: return 1.25f;
+                default: return 1.0f;
+            }
+        }
+        
+        /**
+         * Gets the score multiplier for this difficulty
+         * @return The score multiplier
+         */
+        public float getScoreMultiplier() {
+            switch(this) {
+                case EASY: return 0.8f;
+                case MEDIUM: return 1.0f;
+                case HARD: return 1.5f;
+                default: return 1.0f;
+            }
+        }
+    }
+
     // set GameManager for callbacks
     public void setGameManager(GameManager gameManager) {
         this.gameManager = gameManager;
@@ -48,8 +123,9 @@ public class GameState {
     private boolean paused;
     private long gameStartTime;
     
-    // Reference to GameManager for callbacks
-    // private GameManager gameManager;
+    // Game mode and difficulty settings
+    private GameMode gameMode = GameMode.NORMAL;
+    private DifficultyLevel difficultyLevel = DifficultyLevel.MEDIUM;
     
     // Rating counters
     private int excellentCount;
@@ -145,7 +221,8 @@ public class GameState {
         if (rating != Rating.MISS) {
             combo++;
 
-            if (combo > 0 && combo % 5 == 0 && misses > 0) {
+            // In practice mode, misses are not counted for health
+            if (gameMode != GameMode.PRACTICE && combo > 0 && combo % 5 == 0 && misses > 0) {
                 misses--; // Reduce misses for every 5 hits
             }
 
@@ -153,9 +230,10 @@ public class GameState {
                 maxCombo = combo;
             }
             
-            // Calculate score with combo multiplier
+            // Calculate score with combo multiplier and difficulty multiplier
             int comboMultiplier = Math.min(combo / 10 + 1, 4); // Cap multiplier at 4x
-            score += baseScore * comboMultiplier;
+            float difficultyMultiplier = difficultyLevel.getScoreMultiplier();
+            score += Math.round(baseScore * comboMultiplier * difficultyMultiplier);
         } 
     }
     
@@ -163,9 +241,11 @@ public class GameState {
      * Increments the number of misses
      */
     public void incrementMisses() {
-        misses++;
+        // In practice mode, no health depletion
+        if (gameMode != GameMode.PRACTICE) {
+            misses++;
+        }
         combo = 0; // Reset combo on miss
-        // missCount++;
     }
     
     /**
@@ -290,46 +370,75 @@ public class GameState {
         upcomingNotes.add(note);
     }
     
+/**
+ * Updates the note lists based on current game time
+ * Moves notes from upcoming to active when it's time for them to appear
+ * Moves missed notes from active to processed
+ */
+public void updateNotes() {
+    // If game is paused, don't update notes at all
+    if (isPaused()) {
+        return;
+    }
+
+    long currentTime = getCurrentGameTime();
+    
+    // Move upcoming notes to active notes when it's time
+    List<Note> notesToActivate = new ArrayList<>();
+    for (Note note : upcomingNotes) {
+        if (currentTime >= note.getSpawnTime()) {
+            notesToActivate.add(note);
+        }
+    }
+    
+    upcomingNotes.removeAll(notesToActivate);
+    activeNotes.addAll(notesToActivate);
+    
+    // Check for missed notes (past their hit window)
+    List<Note> missedNotes = new ArrayList<>();
+    for (Note note : activeNotes) {
+        // Use the note's own hit time which is already adjusted for speed
+        if (currentTime > note.getHitTime() + HIT_WINDOW_MS) {
+            missedNotes.add(note);
+            incrementMisses();
+
+            if (gameManager != null) {
+                gameManager.noteMissed(note);
+            }
+        }
+    }
+    
+    activeNotes.removeAll(missedNotes);
+    processedNotes.addAll(missedNotes);
+}
+    
     /**
-     * Updates the note lists based on current game time
-     * Moves notes from upcoming to active when it's time for them to appear
-     * Moves missed notes from active to processed
+     * Gets an adjusted hit window size based on speed multiplier
+     * @param speedMultiplier The speed multiplier of the note
+     * @return The adjusted hit window in milliseconds
      */
-    public void updateNotes() {
-        // If game is paused, don't update notes at all
-        if (isPaused()) {
-            return;
-        }
-
-        long currentTime = getCurrentGameTime();
-        
-        // Move upcoming notes to active notes when it's time
-        List<Note> notesToActivate = new ArrayList<>();
-        for (Note note : upcomingNotes) {
-            if (currentTime >= note.getSpawnTime()) {
-                notesToActivate.add(note);
-            }
-        }
-        
-        upcomingNotes.removeAll(notesToActivate);
-        activeNotes.addAll(notesToActivate);
-        
-        // Check for missed notes (past their hit window)
-        List<Note> missedNotes = new ArrayList<>();
-        for (Note note : activeNotes) {
-            if (currentTime > note.getHitTime() + HIT_WINDOW_MS) {
-                missedNotes.add(note);
-                incrementMisses();
-
-                if (gameManager != null) {
-                    gameManager.noteMissed(note);
-                }
-                
-            }
-        }
-        
-        activeNotes.removeAll(missedNotes);
-        processedNotes.addAll(missedNotes);
+    private int getAdjustedHitWindow(float speedMultiplier) {
+        // Inverse relation: slower notes (smaller multiplier) get a larger hit window
+        // Faster notes (larger multiplier) get a smaller hit window
+        return Math.round(HIT_WINDOW_MS / speedMultiplier);
+    }
+    
+    /**
+     * Gets an adjusted excellent window size based on speed multiplier
+     * @param speedMultiplier The speed multiplier of the note
+     * @return The adjusted excellent window in milliseconds
+     */
+    private int getAdjustedExcellentWindow(float speedMultiplier) {
+        return Math.round(EXCELLENT_WINDOW_MS / speedMultiplier);
+    }
+    
+    /**
+     * Gets an adjusted good window size based on speed multiplier
+     * @param speedMultiplier The speed multiplier of the note
+     * @return The adjusted good window in milliseconds
+     */
+    private int getAdjustedGoodWindow(float speedMultiplier) {
+        return Math.round(GOOD_WINDOW_MS / speedMultiplier);
     }
     
     /**
@@ -353,45 +462,78 @@ public class GameState {
         return false;
     }
     
-    /**
-     * Checks if a player hit a note and returns the rating
-     * @param laneIndex The lane index where the player clicked
-     * @param clickTime The time of the click
-     * @return A HitResult object containing the hit note and rating, or null if no hit
-     */
-    public HitResult hitNote(int laneIndex, long clickTime) {
-        Note closest = null;
-        long minDiff = Long.MAX_VALUE;
+/**
+ * Checks if a player hit a note and returns the rating
+ * @param laneIndex The lane index where the player clicked
+ * @param clickTime The time of the click
+ * @return A HitResult object containing the hit note and rating, or null if no hit
+ */
+public HitResult hitNote(int laneIndex, long clickTime) {
+    Note closest = null;
+    long minDiff = Long.MAX_VALUE;
 
-        for (Note note : activeNotes) {
-            if (note.getLaneIndex() == laneIndex) {
-                long diff = Math.abs(clickTime - note.getHitTime());
-                if (diff <= HIT_WINDOW_MS && diff < minDiff) {
-                    closest = note;
-                    minDiff = diff;
-                }
+    for (Note note : activeNotes) {
+        if (note.getLaneIndex() == laneIndex) {
+            long diff = Math.abs(clickTime - note.getHitTime());
+            
+            // Use fixed hit windows since hit times are already adjusted for speed
+            if (diff <= HIT_WINDOW_MS && diff < minDiff) {
+                closest = note;
+                minDiff = diff;
             }
         }
-
-        if (closest != null) {
-            Rating rating;
-            if (minDiff <= EXCELLENT_WINDOW_MS) {
-                rating = Rating.EXCELLENT;
-            } else if (minDiff <= GOOD_WINDOW_MS) {
-                rating = Rating.GOOD;
-            } else {
-                rating = Rating.POOR;
-            }
-
-            activeNotes.remove(closest);
-            processedNotes.add(closest);
-
-            return new HitResult(closest, rating); // ✅ 注意这里必须加 new
-        }
-
-        return null;
     }
 
+    if (closest != null) {
+        Rating rating;
+        if (minDiff <= EXCELLENT_WINDOW_MS) {
+            rating = Rating.EXCELLENT;
+        } else if (minDiff <= GOOD_WINDOW_MS) {
+            rating = Rating.GOOD;
+        } else {
+            rating = Rating.POOR;
+        }
+
+        activeNotes.remove(closest);
+        processedNotes.add(closest);
+
+        return new HitResult(closest, rating);
+    }
+
+    return null;
+}
+    
+    /**
+     * Sets the game mode
+     * @param gameMode The game mode to set
+     */
+    public void setGameMode(GameMode gameMode) {
+        this.gameMode = gameMode;
+    }
+    
+    /**
+     * Gets the current game mode
+     * @return The current game mode
+     */
+    public GameMode getGameMode() {
+        return gameMode;
+    }
+    
+    /**
+     * Sets the difficulty level
+     * @param difficultyLevel The difficulty level to set
+     */
+    public void setDifficultyLevel(DifficultyLevel difficultyLevel) {
+        this.difficultyLevel = difficultyLevel;
+    }
+    
+    /**
+     * Gets the current difficulty level
+     * @return The current difficulty level
+     */
+    public DifficultyLevel getDifficultyLevel() {
+        return difficultyLevel;
+    }
     
     /**
      * Inner class to hold the result of a hit attempt

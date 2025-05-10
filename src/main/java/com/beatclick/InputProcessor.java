@@ -2,6 +2,7 @@ package com.beatclick;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
  * InputProcessor - Processes player input events in a separate thread
@@ -11,7 +12,7 @@ public class InputProcessor implements Runnable {
     
     private final GameManager gameManager;
     private final BlockingQueue<InputEvent> inputQueue;
-    private boolean isRunning;
+    private volatile boolean isRunning;
     
     /**
      * Inner class to represent an input event
@@ -49,8 +50,8 @@ public class InputProcessor implements Runnable {
      * @param laneIndex The lane index where the input occurred
      */
     public void addInputEvent(int laneIndex) {
-        // Don't add input events when game is paused
-        if (gameManager.getGameState().isPaused()) {
+        // Don't add input events when game is paused or game is not running
+        if (gameManager.getGameState().isPaused() || !isRunning || !gameManager.isGameRunning()) {
             return;
         }
         
@@ -67,27 +68,45 @@ public class InputProcessor implements Runnable {
         
         try {
             while (isRunning && gameManager.isGameRunning()) {
-                synchronized (gameManager.getSyncLock()) {
-                    // Check if the game is paused
-                    while (gameManager.getGameState().isPaused()) {
-                        try {
-                            gameManager.getSyncLock().wait();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            return;
+                // Check if the game is paused
+                if (gameManager.getGameState().isPaused()) {
+                    synchronized (gameManager.getSyncLock()) {
+                        while (gameManager.getGameState().isPaused() && isRunning && gameManager.isGameRunning()) {
+                            try {
+                                gameManager.getSyncLock().wait(100); // Use a timeout to periodically check isRunning
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                return;
+                            }
                         }
+                    }
+                    
+                    // Skip this iteration if we've been interrupted or stopped
+                    if (!isRunning || !gameManager.isGameRunning()) {
+                        break;
                     }
                 }
                 
-                // Process input events from the queue
-                InputEvent event = inputQueue.take();
-                if (event != null) {
+                // Process input events from the queue with a timeout to avoid blocking forever
+                InputEvent event = null;
+                try {
+                    event = inputQueue.poll(100, TimeUnit.MILLISECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                
+                if (event != null && isRunning && gameManager.isGameRunning() && !gameManager.getGameState().isPaused()) {
                     gameManager.processNoteClick(event.getLaneIndex(), event.getEventTime());
                 }
-
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            System.err.println("Error in InputProcessor: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            // Make sure to clean up
+            inputQueue.clear();
+            isRunning = false;
         }
     }
     
@@ -96,5 +115,13 @@ public class InputProcessor implements Runnable {
      */
     public void stop() {
         isRunning = false;
+        // Clear any pending input events
+        inputQueue.clear();
+        
+        // Interrupt any waiting operations
+        Thread currentThread = Thread.currentThread();
+        if (currentThread != null) {
+            currentThread.interrupt();
+        }
     }
 }
